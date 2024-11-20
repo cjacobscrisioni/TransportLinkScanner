@@ -1,0 +1,6 @@
+container ChoiceSet
+{
+	#include<genNetwork.dms>
+	#include<SelZones.dms>
+	#include<AltLinks.dms>
+}

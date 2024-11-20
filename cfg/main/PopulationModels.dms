@@ -1,0 +1,395 @@
+Container PopulationModels: Using = "Units;" {
+	
+	unit<uint32> PopulationModelYears: expr = "range(uint32, 0, 1+(1929 - 1829)/10)" {
+		attribute<uint32> Year: 		expr = "1829 + (id(.) * 10)";
+		attribute<.>	  PrevYear:		expr = "makedefined(sub_or_null(id(.), 1), 0)";
+		attribute<string> sYear: 		expr = "'y'+string(Year)";
+		attribute<uint32> Pop:			expr = "= 'union_data(.,'+AsItemList('sum(Zones/Pop'+string(Year)+')')+')'";
+		attribute<string> ModelPopDef:	expr = "Year < 1840 ? 'InitPop' : sYear[id(.)-1]+'/model/LeadPop'";
+		attribute<string> LabelText:	expr = "string(Year)";
+	}
+	parameter<string> PopFilePath: expr = "'%projDir%/runs/'+ RunSettings/Scenarios/Name[RunSettings/ScenarioId] + '/population/modelled'";
+	
+	container Models {
+		
+		container DefPopulationModel: expr = "= switch(case(IsDefined(strpos(uppercase(RunSettings/Scenarios/popfield_eval[RunSettings/ScenarioId]), 'SIMULATED')), 'BasePopulationModel'), 'EstimatedPopulationModel')";
+		
+		container BasePopulationModel {
+			parameter<string> model_expr: expr = "'(-0.012975f * t2) + (-0.011431f * t3) + (-0.002778f * t4) + (-0.077674f * t5) + (-0.090676f * t6) + (-0.067836f * t7) + (-0.052658f * t8) + (-0.086396f * t9) + (-0.000036f * pd1) + (0.015267f * hasRail) + (0.109690f * pha_suburb) + (0.038595f * RCTi_1829) + (0.001253f * RAi_1829)'";
+			container fixed_effects: expr = "loadDataFile_csv('%SourceDataProjDir%/data/fixed_effects/zero_effects_simulated_zones', Zones, 'Id')";
+		}
+		container EstimatedPopulationModel {
+			parameter<string> model_expr: expr = "'(-0.012975f * t2) + (-0.011431f * t3) + (-0.002778f * t4) + (-0.077674f * t5) + (-0.090676f * t6) + (-0.067836f * t7) + (-0.052658f * t8) + (-0.086396f * t9) + (-0.000036f * pd1) + (0.015267f * hasRail) + (0.297290f * textTRUE) + (0.169410f * adam_nzkTRUE) + (0.192020f * rdam_nwwTRUE) + (0.383330f * isactivemineTRUE) + (0.338970f * philipsTRUE) + (0.109690f * pha_suburb) + (0.038595f * RCTi_1829) + (0.001253f * RAi_1829)'";
+			container fixed_effects: expr = "loadDataFile_csv('%SourceDataProjDir%/data/fixed_effects/fixef_effects_20200603_lin_ext', Zones, 'Id')";
+			
+		}
+		
+		parameter<string> pf_ref:= uppercase(RunSettings/Scenarios/popfield_eval[RunSettings/ScenarioId]);
+		parameter<string> Zones_Ref:= switch(case(IsDefined(strpos(pf_ref, 'SIMULATEDFLAT')), 'SimulatedZones'), case(IsDefined(strpos(pf_ref, 'SIMULATEDOBSERVED')), 'SimulatedZones_populated'), 'ObservedPopulation');
+	}
+	
+	unit<uint32> Population: expr = "Zones", ExplicitSuppliers = "RunSettings/InvestmentTracker" {
+		attribute<float32> ObservedDynamic:	expr = "= 'float32(Pop' + string(RunSettings/inYear)+')'";
+		attribute<float32> ObservedStatic: 	expr = "= RunSettings/inYear < 1931w ? 'float32(Pop'+string(RunSettings/Scenarios/Startyear[RunSettings/ScenarioId])+')' : 'ObservedDynamic'";
+		attribute<float32> ModelledDynamic: expr = "= 'float32(Recursive_Endogenous_Models/FullPopResults/AllPopResults/Pop'+string(RunSettings/inYear)+')'", ExplicitSuppliers = "Recursive_Endogenous_Models/FullPopResults/StoreNewPopResults;";
+		attribute<float32> SimulatedDynamic:expr = "ModelledDynamic";
+		attribute<float32> SimulatedFlatDynamic: expr = "ModelledDynamic";
+		attribute<float32> SimulatedObservedDynamic: expr = "ModelledDynamic";
+		attribute<float32> Population:		expr = "= RunSettings/Scenarios/popfield_eval[RunSettings/ScenarioId]";
+		attribute<float32> ln_Pop:			expr = "log(float32(Population))";
+	}
+	unit<uint32> Zones: expr = "= 'SourceData/' + Models/Zones_ref" {
+		attribute<PopulationModelYears>	InitYear:	expr = "id(.) = 322 ? rlookup(1859, PopulationModelYears/Year) : rlookup(1839, PopulationModelYears/Year)";
+		attribute<float32> 				LeadPop:	expr = "switch(case(InitYear = 3, float32(Pop1859)), float32(Pop1839))";
+		attribute<float32> 				CTi_1829: 	expr = "Modelfitting/EmpiricalAccessibilityLevels/y1829/CTi";
+		attribute<float32> 				mCTi_1829:	expr = "const(sum(LeadPop * CTi_1829) / sum(LeadPop),.,float32)";
+		attribute<float32>				Err_Incl:	expr = "float32(float32(Pop1839) > 0f)";
+	}
+	
+	container Recursive_Endogenous_Models:			expr = "GovernRecursive_endogenous_models(StartNet/WholeNetwork, Models/DefPopulationModel)", ExplicitSuppliers = "RunSettings/InvestmentTracker";
+	container Recursive_Endogenous_Models_NoRail:	expr = "GovernRecursive_endogenous_models(SourceData/Roads/Road_data, Models/DefPopulationModel, True)";//, ExplicitSuppliers = "RunSettings/InvestmentTracker";
+		
+	unit<uint32> StoreNewPopulationFile: expr = "Zones", StorageName = "= PopFilePath+'.dbf'" {
+		attribute<point_rd> Geometry (poly): expr = "vlak", StorageName = "= PopFilePath+'.shp'";
+		attribute<string> muni: expr = "Mun";
+		container year_results: expr = "for_each_nedva('Pop'+string(PopulationModelYears/Year), PopulationModelYears/Year <= RunSettings/Scenarios/Startyear[Runsettings/ScenarioId] ? 'uint32(Zones/Pop'+string(PopulationModelYears/Year)+')' : 'const(0,StoreNewPopulationFile,uint32)', StoreNewPopulationFile, uint32, '%projDir%/runs/'+ RunSettings/Scenarios/Name[RunSettings/ScenarioId] + '/population/modelled.dbf')";
+	}
+	
+	container Modelfitting {
+		
+		container ExogenousAccessPopulationModel:		expr = "for_each_ne(PopulationModelYears/sYear, 'doPopModel('+string(id(PopulationModelYears))+', Models/DefPopulationModel, EmpiricalAccessibilityLevels)')";
+		container NoAccessPopulationModel_muni:			expr = "for_each_ne(PopulationModelYears/sYear, 'doPopModel('+string(id(PopulationModelYears))+', Models/DefPopulationModel, EmpiricalAccessibilityLevels)')";
+		container EmpiricalAccessibilityLevels: 		expr = "for_each_ne(PopulationModelYears/sYear, 'getObservedNetworkAccessibility(SourceData/Railroads/Railroads/Railroad_data, SourceData/Railroads/Stations/RailStations, 		SourceData/Railroads/Stations/StationConnectLinks, SourceData/Roads/Road_data, Zones, '+string(id(PopulationModelYears))+')')";
+		container NoRailDev_Access:						expr = "for_each_ne(PopulationModelYears/sYear, 'getNoRailAccessibility(SourceData/Roads/Road_data, Zones, '+string(id(PopulationModelYears))+')')";
+		
+		unit<uint32> store_accessibilityvalues:= Zones, StorageName = "%LocalDataProjDir%/empirical_access.dbf" {
+			attribute<point_rd> Geometry (poly):= vlak, storagename = "%LocalDataProjDir%/empirical_access.shp";
+			attribute<string> muni: expr = "Mun";
+			container year_acc_results: expr = "for_each_nedva('A_'+string(PopulationModelYears/Year), 'EmpiricalAccessibilityLevels/'+PopulationModelYears/sYear+'/Ai', store_accessibilityvalues, float32, '%LocalDataProjDir%/empirical_access.dbf')";
+			container year_ct_results: expr = "for_each_nedva('CT_'+string(PopulationModelYears/Year), 'EmpiricalAccessibilityLevels/'+PopulationModelYears/sYear+'/CTi', store_accessibilityvalues, float32, '%LocalDataProjDir%/empirical_access.dbf')";
+		
+		}
+		
+		unit<uint32> CreateObservedPanel: expr = "combine(PopulationModelYears, Zones)" {
+			attribute<uint32> i:			expr = "nr_2";
+			attribute<uint32> t:			expr = "nr_1";
+			attribute<string> Municipality: expr = "Zones/Mun[nr_2]";
+			attribute<uint32> Year:			expr = "PopulationModelYears/Year[nr_1]";
+			attribute<float32>Sqkm:			expr = "area(Zones/vlak[nr_2], float32) / (1000f * 1000f)";
+			attribute<float32>Pop:			expr = "= 'union_data(., '+AsItemList('EmpiricalAccessibilityLevels/'+PopulationModelYears/sYear+'/Pi')+')'";
+			attribute<float32>LeadPop:		expr = "= 'union_data(., '+AsItemList('EmpiricalAccessibilityLevels/'+PopulationModelYears/sYear+'/LPi')+')'";
+			attribute<float32>Ai:			expr = "= 'union_data(., '+AsItemList('EmpiricalAccessibilityLevels/'+PopulationModelYears/sYear+'/Ai')+')'";
+			attribute<float32>CTi:			expr = "= 'union_data(., '+AsItemList('EmpiricalAccessibilityLevels/'+PopulationModelYears/sYear+'/CTi')+')'";
+			attribute<float32>Station:		expr = "= 'union_data(., '+AsItemList('EmpiricalAccessibilityLevels/'+PopulationModelYears/sYear+'/Station')+')'";
+			attribute<float32>HasRail:		expr = "= 'union_data(., '+AsItemList('EmpiricalAccessibilityLevels/'+PopulationModelYears/sYear+'/HasRail')+')'";
+			attribute<float32>RailLength:		expr = "= 'union_data(., '+AsItemList('EmpiricalAccessibilityLevels/'+PopulationModelYears/sYear+'/RailLength')+')'";
+			
+			attribute<float32>rel_Area:		expr = "Sqkm / mean(Sqkm)";
+			attribute<float32>mAi:			expr = "(sum(Pop * Ai, nr_1) / sum(Pop, nr_1))[nr_1]";
+			attribute<float32>mAi_1829:		expr = "(sum(Pop * Ai, nr_1) / sum(Pop, nr_1))[const(0,.,PopulationModelYears)]";
+			attribute<float32>CountryPop:	expr = "float32(PopulationModelYears/Pop[nr_1])";
+		}
+		unit<uint32> DefModelEvaluation: expr = "PopulationModelYears" {
+			attribute<uint32> mYear: 		expr = "Year";
+			attribute<float32> MAPE: 		expr = "= 'union_data(.,'+AsItemList('ExogenousAccessPopulationModel/'+sYear+'/model_evaluation/MAPE')+')'";
+			attribute<float32> RMSE:		expr = "= 'union_data(.,'+AsItemList('ExogenousAccessPopulationModel/'+sYear+'/model_evaluation/RMSE')+')'";
+			attribute<float32> mPop: 		expr = "= 'union_data(.,'+AsItemList('ExogenousAccessPopulationModel/'+sYear+'/model_evaluation/mPop')+')'";
+			attribute<float32> oPop: 		expr = "= 'union_data(.,'+AsItemList('ExogenousAccessPopulationModel/'+sYear+'/model_evaluation/oPop')+')'";
+			attribute<float32> min_re: 		expr = "= 'union_data(.,'+AsItemList('ExogenousAccessPopulationModel/'+sYear+'/model_evaluation/min_re')+')'";
+			attribute<float32> p05th_re: 	expr = "= 'union_data(.,'+AsItemList('ExogenousAccessPopulationModel/'+sYear+'/model_evaluation/p05th_re')+')'";
+			attribute<float32> p25th_re: 	expr = "= 'union_data(.,'+AsItemList('ExogenousAccessPopulationModel/'+sYear+'/model_evaluation/p25th_re')+')'";
+			attribute<float32> p50th_re: 	expr = "= 'union_data(.,'+AsItemList('ExogenousAccessPopulationModel/'+sYear+'/model_evaluation/p50th_re')+')'";
+			attribute<float32> p75th_re: 	expr = "= 'union_data(.,'+AsItemList('ExogenousAccessPopulationModel/'+sYear+'/model_evaluation/p75th_re')+')'";
+			attribute<float32> p95th_re: 	expr = "= 'union_data(.,'+AsItemList('ExogenousAccessPopulationModel/'+sYear+'/model_evaluation/p95th_re')+')'";
+			attribute<float32> max_re: 		expr = "= 'union_data(.,'+AsItemList('ExogenousAccessPopulationModel/'+sYear+'/model_evaluation/max_re')+')'";
+			attribute<float32> corr_err:	expr = "= 'union_data(.,'+AsItemList('ExogenousAccessPopulationModel/'+sYear+'/model_evaluation/corr_err')+')'";
+			attribute<float32> corr_rerr: 	expr = "= 'union_data(.,'+AsItemList('ExogenousAccessPopulationModel/'+sYear+'/model_evaluation/corr_rerr')+')'";
+			attribute<float32> corr_fe: 	expr = "= 'union_data(.,'+AsItemList('ExogenousAccessPopulationModel/'+sYear+'/model_evaluation/fe_corr')+')'";
+		}
+	}
+	Template GovernRecursive_endogenous_models {
+		
+		unit<uint32> Network;
+		container ModelDef;
+		parameter<bool> RunAllYears: expr = "False";
+		
+		// below necessary for realistic modelled network timing
+		unit<uint32> ObsNetworkDevelopment: expr = "PopulationModelYears" {
+			attribute<float32> netlength_byyear: expr = "max_elem(max(SourceData/Railroads/Railroads/Railroad_data/Investments/CumuLength, SourceData/Railroads/Railroads/Railroad_data/Investments/PopulationModelYear), 0f)";
+		}
+		unit<uint32> AllocatedNetwork: expr = "Network" {
+			attribute<AllocatedInvestments> invRef: expr = "rlookup(Network/Investid, AllocatedInvestments/Values)";
+			attribute<ObsNetworkDevelopment> builtafter: expr = "AllocatedInvestments/builtafter[invRef]";
+		}
+		
+		unit<uint32> AllocatedInvestments: expr = "unique(Network/InvestId)" {
+			attribute<float32> length: 		expr = "sum(float32(Network/IsRail) * Network/length, AllocatedNetwork/invRef)";
+			attribute<float32> cumulength: 	expr = "cumulate(length)";
+			attribute<ObsNetworkDevelopment> builtafter: expr = "classify(cumulength, ObsNetworkDevelopment/netlength_byyear)";
+		}
+		
+		unit<uint32> AvailablePopResults: expr = "= ExistingFile('x:/x', PopFilePath+'.shp') = 'x:/x' ? 'NoShp' : 'LoadAvailablePopResults'" {
+			attribute<Zones> 	ZonesRef: expr = "point_in_polygon(centroid_or_mid(Geometry), Zones/vlak)";
+		}
+		
+		unit<uint32> NoShp: expr = "StoreNewPopulationFile", Using = "StoreNewPopulationFile/year_results";
+		
+		unit<uint32> LoadAvailablePopResults: StorageName = "= PopFilePath+'.shp'", StorageType = "gdal.vect", StorageReadOnly = "True" {
+			attribute<point_rd> Geometry (poly);
+		}
+		
+		unit<uint32> FullPopResults: 	expr = "Zones" 
+		{
+			attribute<AvailablePopResults> aprREF: expr = "invert(AvailablePopResults/ZonesRef)";
+			container AllPopResults: 		expr = "for_each_nedv(ResultsNecessary ? 'Pop'+string(PopulationModelYears/Year) : '', ResultsAvailable ? 'float32(AvailablePopResults/Pop'+string(PopulationModelYears/Year)+')[aprREF]' : 'StoreNewPopResults/Pop'+string(PopulationModelYears/Year)+'[aprREF]', Zones, float32)", ExplicitSuppliers = "= AsList(ResultsNecessary && !ResultsAvailable ? 'StoreNewPopResults/Pop'+string(PopulationModelYears/Year) : '', ';')";
+			container StoreNewPopResults: 	expr = "for_each_nedva(ResultsNecessary && !ResultsAvailable ?'Pop'+string(PopulationModelYears/Year) : '', 'ModelledPopulationLevels/'+PopulationModelYears/sYear+'/model/LeadPop[AvailablePopResults/ZonesRef]', AvailablePopResults, float32, PopFilePath+'.dbf')";
+		}
+		attribute<bool>	ResultsAvailable (PopulationModelYears): expr = "= 'union_data(PopulationModelYears, '+AsItemList('sum(uint32(AvailablePopResults/Pop'+string(PopulationModelYears/Year)+')) > 0')+')'";
+		attribute<bool> ResultsNecessary (PopulationModelYears): expr = "PopulationModelYears/Year <= uint32(RunSettings/inYear) || RunAllYears";
+		
+		// in p, population in prior model step. In Ai, accessibility based on the network in prior model step (so in 1849, p = 1839, ai = based on network 1839).
+		container ModelledPopulationLevels: 	expr = "for_each_ne(ResultsNecessary ? PopulationModelYears/sYear : '', ResultsAvailable ? 'doMimicPopModel(AvailablePopResults,'+string(id(PopulationModelYears))+')' : 'doPopModel('+string(id(PopulationModelYears))+',Models/DefPopulationModel,ModelledAccessibilityLevels)')";
+		// accessibility based on network as it could have been, for the timestep y1849 the network as it roughly could have been in 1849.
+		container ModelledAccessibilityLevels: 	expr = "for_each_ne(ResultsNecessary ? PopulationModelYears/sYear : '', 'getModelledNetworkAccessibility(AllocatedNetwork, FullPopResults, '+string(id(PopulationModelYears))+')')";
+	}
+	Template doMimicPopModel {
+		unit<uint32> read_Data;
+		parameter<PopulationModelYears> inYear;
+		
+		unit<uint32> model: expr = "Zones" {
+			attribute<float32> LeadPop: 		expr = "= 'rjoin(id(.), read_Data/ZonesRef, float32(read_Data/Pop'+string(PopulationModelYears/Year[inYear])+'))'";
+		}
+	}
+	
+	Template doPopModel {
+		
+		parameter<PopulationModelYears> inYear;
+		container ModelDefinition;
+		container AccessibilityTimeSeries;
+		
+		unit<uint32> prevIter: expr = "= inYear > 0 ? PopulationModelYears/sYear[PopulationModelYears/PrevYear[inYear]]+'/model' : 'Zones'";
+		
+		container dummies: expr = "for_each_nedv('t'+string(id(PopulationModelYears)), 'const(float32(inYear = '+string(id(PopulationModelYears))+'), Zones, float32)', Zones, float32)";
+		
+		unit<uint32> CTOD: expr = "AccessibilityTimeSeries/y1829/WholeNetwork/OD_Matrix";
+		unit<uint32> AIOD: expr = "= 'AccessibilityTimeSeries/'+PopulationModelYears/sYear[PopulationModelYears/PrevYear[inyear]]+'/WholeNetwork/OD_Matrix'";
+		
+		unit<uint32> model: expr = "Zones", Using = "dummies;" {
+			attribute<float32> fe:				expr = "makedefined(float32(ModelDefinition/fixed_effects/DefFile/fe), 0f)";
+			attribute<float32> p:				expr = "switch(case(inYear < InitYear, 0f), case(inYear = InitYear, Zones/LeadPop), prevIter/LeadPop)";
+			attribute<float32> pd1: 			expr = "p / Sqkm";
+			attribute<float32> isactivemineTRUE:expr = "float32(isMine) * float32(PopulationModelYears/Year[inYear] > 1899)";
+			attribute<float32> philipsTRUE:		expr = "float32(id(.) = 237 && PopulationModelYears/Year[inYear] > 1889)";
+			attribute<float32> textTRUE:		expr = "float32((id(.) = 248 || id(.) = 376) && PopulationModelYears/Year[inYear] > 1849)";
+			attribute<float32> adam_nzkTRUE:	expr = "float32(id(.) = 33 && PopulationModelYears/Year[inYear] > 1859)";
+			attribute<float32> rdam_nwwTRUE:	expr = "float32(id(.) = 759 && PopulationModelYears/Year[inYear] > 1859)";
+			attribute<float32> pha_suburb:		expr = "phardsoils * float32(PopulationModelYears/Year[inYear] > 1869)";
+			attribute<float32> ln_pd1:			expr = "MakeDefined(log(pd1),0f)";
+			attribute<float32> ln_pd2:			expr = "(ln_pd1^2f) - (ln_pd1^1f)";
+			attribute<float32> ln_pd3:			expr = "(ln_pd1^3f) - (ln_pd1^2f)";
+			attribute<float32> ln_pd4:			expr = "(ln_pd1^4f) - (ln_pd1^3f)";
+			attribute<float32> ln_pd5:			expr = "(ln_pd1^5f) - (ln_pd1^4f)";
+			attribute<float32> CTi:				expr = "sum(p[CTOD/DstZone_rel] * ((CTOD/impedance / 60f)^params/b1), CTOD/OrgZone_rel)";
+			attribute<float32> Ai:				expr = "sum(p[AIOD/DstZone_rel] * ((AIOD/impedance / 60f)^params/b1), AIOD/OrgZone_rel)";
+			attribute<float32> RCTi_1829:		expr = "CTi / mCTi_1829";
+			attribute<float32> RAi_1829:		expr = "Ai / mCTi_1829";	
+			attribute<float32> hasRail:			expr = "= 'AccessibilityTimeSeries/'+PopulationModelYears/sYear[inYear]+'/hasRail'";
+			attribute<float32> growth:			expr = "= 'exp(fe + '+ModelDefinition/model_expr+')'";
+			attribute<float32> LeadPop: 		expr = "MakeDefined(p * growth, p)";
+		}
+		unit<uint32> model_evaluation: expr = "Zones" {
+			attribute<float32> modelresult: 	expr = "model/p";
+			attribute<float32> observedresult:	expr = "= 'float32(SourceData/ObservedPopulation/Pop'+string(PopulationModelYears/Year[inYear])+')'";
+			attribute<float32> error:			expr = "Err_Incl * (modelresult - observedresult)";
+			attribute<float32> rel_error:		expr = "error <> 0f ? error / observedresult : 0f";
+			attribute<float32> sq_error:		expr = "error*error";
+			parameter<float32> MAPE:			expr = "mean(Abs(rel_error))";
+			parameter<float32> RMSE:			expr = "MakeDefined(sqrt(mean(sq_error)),0f)";
+			parameter<float32> corr_err:		expr = "corr(observedresult, error)";
+			parameter<float32> corr_rerr:		expr = "corr(observedresult, abs(rel_error))";
+			parameter<float32> fe_corr:			expr = "corr(rel_error, model/fe)";
+			parameter<float32> mPop:			expr = "sum(modelresult)";
+			parameter<float32> oPop:			expr = "sum(observedresult)";
+			parameter<Zones>   rel_biggest_err: expr = "max_index(Abs(rel_error))";
+			parameter<Zones>   abs_biggest_err: expr = "max_index(Abs(error))";
+			parameter<float32> min_re:			expr = "min(rel_error)";
+			parameter<float32> p05th_re:		expr = "rth_element(rel_error, 0.05f)";
+			parameter<float32> p25th_re:		expr = "rth_element(rel_error, 0.25f)";
+			parameter<float32> p50th_re:		expr = "rth_element(rel_error, 0.50f)";
+			parameter<float32> p75th_re:		expr = "rth_element(rel_error, 0.75f)";
+			parameter<float32> p95th_re:		expr = "rth_element(rel_error, 0.95f)";
+			parameter<float32> max_re:			expr = "max(rel_error)";
+		}
+	}
+	
+	Template getNoRailAccessibility {
+		unit<uint32> NetworkRef;
+		unit<uint32> Zones;
+		parameter<PopulationModelYears> inYearRef;
+		
+		container Ref: expr = "= 'NoRailDev_Access/'+PopulationModelYears/sYear[0]";
+		
+		unit<uint32> WholeNetwork: expr = "subset(!NetworkRef/IsRail)", DialogData = "line", DialogType  = "Map"
+		{
+			attribute<point_rd> line (arc): 		expr = "NetworkRef/line[Nr_OrgEntity]";
+			attribute<s> 		Seconds:  			expr = "NetworkRef/Seconds[Nr_OrgEntity]";
+			
+			attribute<point_rd> frompoint: 	expr = "first_point(line)";
+			attribute<point_rd> topoint: 	expr = "last_point(line)";
+			
+			unit<uint32> PointSet: 	expr = "union_unit(WholeNetwork, WholeNetwork)" {attribute<point_rd> point: expr = "union_data(., frompoint, topoint)";}
+			unit<uint32> NodeSet:	expr = "unique(PointSet/point)";
+			
+			attribute<NodeSet> F1: expr = "rlookup(frompoint, NodeSet/Values)";
+			attribute<NodeSet> F2: expr = "rlookup(topoint, NodeSet/Values)";
+			attribute<NodeSet> ZoneCon (Zones): expr = "rlookup(Zones/Centroid, NodeSet/Values)";
+						
+			unit<uint32> OD_Matrix: expr = "dijkstra_m('bidirectional;startPoint(Node_rel);endPoint(Node_rel);od:impedance,OrgZone_rel,DstZone_rel', Seconds, F1, F2, ZoneCon, ZoneCon)";
+		}
+		
+		attribute<float32> Pi 			(Zones): expr = "= 'float32(FullPopResults/AllPopResults/Pop'+string(PopulationModelYears/Year[inYearRef])+')'";
+		attribute<float32> Ai 			(Zones): expr = "CTi";
+		attribute<float32> CTi			(Zones): expr = "sum(Pi[Ref/WholeNetwork/OD_Matrix/DstZone_rel] * ((Ref/WholeNetwork/OD_Matrix/impedance / 60f)^params/b1), Ref/WholeNetwork/OD_Matrix/OrgZone_rel)";
+		attribute<float32> HasRail		(Zones): expr = "const(0f,Zones,float32)";
+	}
+	
+	Template getModelledNetworkAccessibility
+	{
+		unit<uint32> NetworkRef;
+		unit<uint32> Zones;
+		parameter<PopulationModelYears> inYearRef;
+		
+		container Ref: expr = "= 'ModelledAccessibilityLevels/'+PopulationModelYears/sYear[0]";
+		
+		unit<uint32> WholeNetwork: expr = "subset(NetworkRef/builtafter < inYearRef || !NetworkRef/IsRail)", DialogData = "line", DialogType  = "Map"
+		{
+			attribute<point_rd> line (arc): 		expr = "NetworkRef/line[Nr_OrgEntity]";
+			attribute<m> 		length:  			expr = "NetworkRef/length[Nr_OrgEntity]";
+			attribute<s> 		Seconds:  			expr = "NetworkRef/Seconds[Nr_OrgEntity]";
+			attribute<bool>  	IsRail: 			expr = "bool(NetworkRef/IsRail)[Nr_OrgEntity]";
+			attribute<uint32> 	InvestId:  			expr = "uint32(NetworkRef/InvestId)[Nr_OrgEntity]";
+			
+			attribute<point_rd> frompoint: 	expr = "first_point(line)";
+			attribute<point_rd> topoint: 	expr = "last_point(line)";
+			
+			unit<uint32> PointSet: 	expr = "union_unit(WholeNetwork, WholeNetwork)" {attribute<point_rd> point: expr = "union_data(., frompoint, topoint)";}
+			unit<uint32> NodeSet:	expr = "unique(PointSet/point)";
+			
+			attribute<NodeSet> F1: expr = "rlookup(frompoint, NodeSet/Values)";
+			attribute<NodeSet> F2: expr = "rlookup(topoint, NodeSet/Values)";
+			attribute<NodeSet> ZoneCon (Zones): expr = "rlookup(Zones/Centroid, NodeSet/Values)";
+			
+			unit<uint32> dynapoints: expr = "dyna_point(frompoint, topoint, 25f)" {attribute<Zones> ZoneRel: expr = "point_in_polygon(Point, Zones/vlak)"; attribute<bool> israil: expr = "WholeNetwork/IsRail[SequenceNr]";}
+			
+			unit<uint32> OD_Matrix: expr = "dijkstra_m('bidirectional;startPoint(Node_rel);endPoint(Node_rel);od:impedance,OrgZone_rel,DstZone_rel', Seconds, F1, F2, ZoneCon, ZoneCon)";
+		}
+		
+		attribute<float32> Pi 			(Zones): expr = "= 'float32(FullPopResults/AllPopResults/Pop'+string(PopulationModelYears/Year[inYearRef])+')'";
+		attribute<float32> Ai 			(Zones): expr = "sum(Pi[WholeNetwork/OD_Matrix/DstZone_rel] * ((WholeNetwork/OD_Matrix/impedance / 60f)^params/b1), WholeNetwork/OD_Matrix/OrgZone_rel)";
+		attribute<float32> CTi			(Zones): expr = "sum(Pi[Ref/WholeNetwork/OD_Matrix/DstZone_rel] * ((Ref/WholeNetwork/OD_Matrix/impedance / 60f)^params/b1), Ref/WholeNetwork/OD_Matrix/OrgZone_rel)";
+		attribute<float32> HasRail		(Zones): expr = "float32(any(WholeNetwork/dynapoints/israil, WholeNetwork/dynapoints/ZoneRel))";
+	}
+	
+	
+	Template getObservedNetworkAccessibility
+	{
+		unit<uint32> RailNetworkRef;
+		unit<uint32> StationRef;
+		unit<uint32> StationConnectorsRef;
+		unit<uint32> Roads;
+		unit<uint32> Zones;
+		parameter<PopulationModelYears> inYearRef;
+		
+		container Ref: expr = "= 'EmpiricalAccessibilityLevels/'+PopulationModelYears/sYear[0]";
+		
+		unit<uint32> RailNetwork: expr = "subset(uint32(RailNetworkRef/Open1) <= PopulationModelYears/Year[inYearRef] && uint32(RailNetworkRef/Close1) > PopulationModelYears/Year[inYearRef])", DialogData = "line", DialogType = "map"
+		{
+			attribute<point_rd> line (arc): expr = "RailNetworkRef/line[Nr_OrgEntity]";
+			attribute<bool>		IsRail:		expr = "bool(RailNetworkRef/IsRail[Nr_OrgEntity])";
+			attribute<uint32>   InvestId:	expr = "RailNetworkRef/InvestId[Nr_OrgEntity]";
+			attribute<m>  		length: 	expr = "RailNetworkRef/length[Nr_OrgEntity]";
+			attribute<s>		Seconds:	expr = "RailNetworkRef/Seconds[Nr_OrgEntity]";
+			attribute<point_rd> frompoint: 	expr = "first_point(line)";
+			attribute<point_rd> topoint: 	expr = "last_point(line)";
+			
+			unit<uint32> dynapoints: expr = "dyna_point(frompoint, topoint, 25f)" {attribute<Zones> ZoneRel: expr = "point_in_polygon(Point, Zones/vlak)";}
+		}
+		
+		unit<uint32> Stations: expr = "subset(uint32(StationRef/Open_Year) <= PopulationModelYears/Year[inYearRef] && uint32(StationRef/Close_Year) > PopulationModelYears/Year[inYearRef])" {
+			attribute<point_rd> point:		expr = "StationRef/centroid[Nr_OrgEntity]";
+		}
+		unit<uint32> StationConnectors: expr = "subset(StationConnectorsRef/InvestId <= max(RailNetwork/InvestId))" , DialogData      = "line", DialogType  = "Map"
+		{
+			attribute<point_rd> line (arc): expr = "StationConnectorsRef/line[Nr_OrgEntity]";
+			attribute<bool>		IsRail:		expr = "const(false,.,bool)";
+			attribute<uint32>   InvestId:	expr = "StationConnectorsRef/InvestId[Nr_OrgEntity]";
+			attribute<m>  		length: 	expr = "StationConnectorsRef/length[Nr_OrgEntity]";
+			attribute<s>		Seconds:	expr = "StationConnectorsRef/Seconds[Nr_OrgEntity]";
+			attribute<point_rd> frompoint: 	expr = "first_point(line)";
+			attribute<point_rd> topoint: 	expr = "last_point(line)";
+		}
+		unit<uint32> WholeNetwork: expr = "union_unit(RailNetwork,StationConnectors,Roads)", DialogData      = "line", DialogType  = "Map"
+		{
+			attribute<point_rd> line (arc): 		expr = "union_data(., RailNetwork/line, StationConnectors/line, Roads/line)";
+			attribute<m> 		length:  			expr = "value(union_data(., RailNetwork/length, StationConnectors/length, Roads/length),m)";
+			attribute<s> 		Seconds:  			expr = "value(union_data(., RailNetwork/Seconds, StationConnectors/Seconds, Roads/Seconds),s)";
+			attribute<bool>  	IsRail: 			expr = "union_data(., RailNetwork/IsRail, StationConnectors/IsRail, Roads/IsRail)";
+			attribute<uint32> 	InvestId:  			expr = "union_data(., RailNetwork/InvestId, StationConnectors/InvestId, const(0 / 0,Roads, uint32))";
+			
+			attribute<point_rd> frompoint: 	expr = "first_point(line)";
+			attribute<point_rd> topoint: 	expr = "last_point(line)";
+			
+			unit<uint32> PointSet: 	expr = "union_unit(WholeNetwork, WholeNetwork)" {attribute<point_rd> point: expr = "union_data(., frompoint, topoint)";}
+			unit<uint32> NodeSet:	expr = "unique(PointSet/point)";
+			
+			attribute<NodeSet> F1: expr = "rlookup(frompoint, NodeSet/Values)";
+			attribute<NodeSet> F2: expr = "rlookup(topoint, NodeSet/Values)";
+			attribute<NodeSet> ZoneCon (Zones): expr = "rlookup(Zones/Centroid, NodeSet/Values)";
+			
+			unit<uint32> OD_Matrix: expr = "dijkstra_m('bidirectional;startPoint(Node_rel);endPoint(Node_rel);od:impedance,OrgZone_rel,DstZone_rel', Seconds, F1, F2, ZoneCon, ZoneCon)";
+		}
+		
+		attribute<float32> Pi 			(Zones): expr = "= 'float32(Zones/Pop'+string(PopulationModelYears/Year[inYearRef])+')'";
+		attribute<float32> LPi 			(Zones): expr = "= 'MakeDefined(float32(Zones/Pop'+string(inYearRef < (#PopulationModelYears - 1) ? PopulationModelYears/Year[inYearRef+1] : PopulationModelYears/Year[inYearRef])+'), 0f)'";
+		attribute<float32> Ai 			(Zones): expr = "sum(Pi[WholeNetwork/OD_Matrix/DstZone_rel] * ((WholeNetwork/OD_Matrix/impedance / 60f)^params/b1), WholeNetwork/OD_Matrix/OrgZone_rel)";
+		attribute<float32> CTi			(Zones): expr = "sum(Pi[Ref/WholeNetwork/OD_Matrix/DstZone_rel] * ((Ref/WholeNetwork/OD_Matrix/impedance / 60f)^params/b1), Ref/WholeNetwork/OD_Matrix/OrgZone_rel)";
+		attribute<float32> Station		(Zones): expr = "float32(IsDefined(invert(point_in_polygon(StationConnectors/topoint, Zones/vlak))))";
+		attribute<float32> HasRail		(Zones): expr = "float32(IsDefined(invert(RailNetwork/dynapoints/ZoneRel)))";
+		attribute<float32> YesRailNoStat(Zones): expr = "HasRail - Station";
+		attribute<float32> RailLength	(Zones): expr = "float32(pcount(RailNetwork/dynapoints/ZoneRel)) / (40f)"; //estimated length in km
+	}
+	
+	Template loadDataFile_csv {
+		parameter<string> 	inPath;
+		unit<uint32> 	 	TargetUnit: expr = "Geometries/Country";
+		parameter<string> 	ZoneIdField: expr = "'ZoneId'";		
+		parameter<string> 	FieldSeparator := ',';
+		unit<uint32> 		Domain: expr = "range(uint32, 0, #TargetUnit * 2)";
+		
+		parameter<string> 	fssPath: expr = "replace(UpperCase(inPath), '%PROJDIR%', '%LocalDataProjDir%')";
+		
+		parameter<string> FileData:  StorageType = "str",  StorageName = "=inPath+'.csv'";
+		parameter<string> HeaderLine := readLines(FileData, void, 0);
+		parameter<bool>   HeaderOK   := 
+			  regex_match(
+				  HeaderLine
+				 ,'\"[^\"]*+\"(;\"[^\"]*+\")*+'
+			  );
+				
+		unit<uint32> Field:= Range(UInt32, 0, strcount(HeaderLine, FieldSeparator)+1)
+		{attribute<string> Name := ReadArray(HeaderLine, Field, String, 0);}
+				
+		attribute<string> BodyLines(Domain) := readLines(FileData, Domain, HeaderLine/ReadPos); //,  IntegrityCheck = "HeaderOK";
+		attribute<bool> LinesAreSignedIntegerStringOrEmpy (Domain) := 
+			  regex_match(BodyLines,'(-?+[0-9]++|\"[^\"]*+\")?+(;(-?+[0-9]++|\"[^\"]*+\")?+)*+');
+				
+		container Data := for_each_nedv(Field/Name,'ReadElems(BodyLines,string,'+ MakeDefined(Field/Name[ID(Field)-1]+'/ReadPos','const(0,Domain)')+')',Domain,string);
+				
+		attribute<Domain> DomainRefField (TargetUnit): expr = "= 'rlookup(string(id(TargetUnit)), trim(UpperCase(Data/'+ ZoneIdField +')))'";
+		
+		container DefFile: 	expr = "for_each_nedv(Field/Name, 'Data/'+Field/Name+'[DomainRefField]',TargetUnit,string)", KeepData = "True", FreeData = "False";
+		container inFile: 	expr = "= ExistingFile('x:/x',fssPath+Field/Name[0]+'.fss') = 'x:/x' ? 'storeFSS' : 'loadFSS'";
+		container storeFSS: expr = "for_each_nedva(Field/Name, 'DefFile/'+ Field/Name, TargetUnit, string, fssPath + Field/Name + '.fss')";
+		container loadFSS: 	expr = "for_each_ndva(Field/Name, TargetUnit, string, fssPath + Field/Name + '.fss')";
+	}
+}

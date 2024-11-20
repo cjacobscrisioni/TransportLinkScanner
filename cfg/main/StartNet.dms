@@ -1,0 +1,52 @@
+container StartNet: Using = "Units;SourceData;PopulationModels;"
+{
+	parameter<string> NetStoragePlace: expr = "RunSettings/NewRun ? '%dataDir%/StartNet/' + RunSettings/prevFile : '%projDir%/runs/'+ RunSettings/Scenarios/Name[RunSettings/ScenarioId] + '/decade_net/' +  RunSettings/prevFile";
+	
+	// the opnum stored here is the original investor. the opnum in the analysed network is the operator that manages the investment at the relevant year.
+	unit<uint32> RailNetwork: 
+		StorageName = "= NetStoragePlace + '.dbf'",
+		StorageReadOnly = "True",
+		DialogData = "line",
+		DialogType = "map"
+	{
+		attribute<point_rd> line (arc): StorageName = "= NetStoragePlace + '.shp'", StorageReadOnly = "True";
+		attribute<uint16>	IsRail;
+		attribute<Operators/Operators>   OpNum;
+		attribute<uint32>   InvestId;
+		attribute<uint16>	Year;
+		attribute<float32>  Costs;  //:		expr = "length"; // change for real costs when rerunning
+		attribute<m>  		length: 	expr = "arc_length(line, m)";
+		attribute<LinkTypes>linktype:= 	switch(case(!bool(IsRail), 0[LinkTypes]), case(bool(Operators/Operators/State)[OpNum], 2[LinkTypes]), case(bool(Operators/Operators/Local)[OpNum], 3[LinkTypes]), 1[LinkTypes]);
+		attribute<s>		Seconds:=	length / LinkTypes/speeds[linktype];
+		attribute<Zones>	ZoneConn: 	expr = "rlookup(first_node(line), zones/centroid)";
+	}
+	unit<uint32> WholeNetwork: expr = "union_unit(RailNetwork, Roads/Road_data)",
+		DialogData      = "line",
+		DialogType      = "Map"
+	{
+		attribute<point_rd> line (arc): 
+			expr = "union_data(., RailNetwork/line, Roads/Road_data/line)";
+		attribute<m> 	length: 
+			expr = "value(union_data(., RailNetwork/length, Roads/Road_data/length),m)";
+		attribute<s> 	Seconds: 
+			expr = "value(union_data(., RailNetwork/Seconds, Roads/Road_data/Seconds),s)";
+		attribute<uint16> 	Close_Year: 
+			expr = "union_data(., Roads/Road_data/Close_Year)";
+		attribute<bool>  	IsRail: 
+			expr = "union_data(., bool(RailNetwork/IsRail), Roads/Road_data/IsRail)";
+		attribute<bool>		IsConnector:
+			expr = "union_data(., !bool(RailNetwork/IsRail), const(False,Roads/Road_data,bool))";
+		attribute<uint32> InvestId: 
+			expr = "union_data(., RailNetwork/InvestId, const(0 / 0,Roads/Road_data, uint32))";
+		attribute<Operators/Operators> OpNum: expr = "union_data(., uint32(RailNetwork/OpNum), const(0 / 0, Roads/Road_data, uint32))[Operators/Operators]";
+		attribute<float32> Costs: expr = "union_data(., RailNetwork/Costs, const(0/0, Roads/Road_data, float32))";
+		attribute<uint16> Year: expr = "union_data(., RailNetwork/Year, const(0, Roads/Road_data, uint16))";
+	}
+	
+	unit<uint32> Connectors: expr = "Zones"
+	{
+		attribute<uint32>	n_conn: 			expr = "pcount(RailNetwork/ZoneConn)";
+		attribute<m>		min_conn_length: 	expr = "n_conn > 0 ? MakeDefined(min(RailNetwork/length, RailNetwork/ZoneConn), 0[m]) : 0[m]";
+	}
+	
+}

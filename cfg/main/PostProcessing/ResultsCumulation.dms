@@ -1,0 +1,65 @@
+Container HistoricNet_ResultsCumulation: using = "RunSettings;SourceData;ResultsComparison_general/AlternativeCharacteristics;/SourceData/Railroads/Railroads/Railroad_data;" {
+	
+	parameter<ScenariosRan> s_id:= rlookup('calib_elastic', ScenariosRan/Name);
+	parameter<uint32> n_invest:= 68;
+	
+	unit<uint32> op_type: nrofrows = 3 {
+		attribute<string> Label: ['Private_trunk', 'State', 'Local'];
+	}
+	unit<uint32> oplist:= Operators/Real_Operators {
+		attribute<op_type> ot_id:= switch(case(Local[bool], 2), case(State[bool], 1), 0)[op_type];
+	}
+	
+	
+	Container CumulateValues:= do_Cumulate_ConsumerSurplus(s_id);
+		
+	Template do_Cumulate_ConsumerSurplus {
+		parameter<ScenariosRan> inScenario;
+		parameter<point_rd> Amsterdam_centroid:= point(120785f, 487839f, point_rd);
+		
+		unit<uint32> inv_list:= subset(Tobeloaded/ScenarioId = inScenario) {
+			attribute<Investments> InvestId:= (Tobeloaded/InvestId[Nr_OrgEntity])[Investments];	
+			attribute<string> LabelText:= Tobeloaded/Uni_name[Nr_OrgEntity];
+			attribute<op_type> ot_id:= oplist/ot_id[Investments/Operator[InvestId]];
+		}
+		
+		unit<uint32> Cumulation_results:= = 'union_unit('+asItemList('retrieve_characteristics/'+inv_list/LabelText+'/CBA_selected')+')', StorageName = "= '%projDir%/results/ext_cba_'+ScenariosRan/Name[inScenario]+'.dbf'" {
+			attribute<point_rd> Geometry (poly):= ='union_data(.,'+asItemList('retrieve_characteristics/'+inv_list/LabelText+'/CBA_selected/Geometry')+')', StorageName = "= '%projDir%/results/ext_cba_'+ScenariosRan/Name[inScenario]+'.shp'";
+			attribute<uint32>	muni_id:= ='union_data(.,'+asItemList('id(retrieve_characteristics/'+inv_list/LabelText+'/CBA_selected)')+')';
+			attribute<uint32> 	invest_id:= ='union_data(.,'+asItemList('const('+string(inv_list/InvestId)+', retrieve_characteristics/'+inv_list/LabelText+'/CBA_selected,uint32)')+')';
+			attribute<uint32>	ot_id:= rjoin(invest_id, inv_list/InvestId, inv_list/ot_id);
+			attribute<float32>	surplus:= ='union_data(.,'+asItemList('float32(retrieve_characteristics/'+inv_list/LabelText+'/CBA_selected/S)')+')';
+			attribute<float32>	pop:= ='union_data(.,'+asItemList('float32(retrieve_characteristics/'+inv_list/LabelText+'/CBA_selected/P)')+')';
+			attribute<float32>	A1i:=  ='union_data(.,'+asItemList('rjoin(id(retrieve_characteristics/'+inv_list/LabelText+'/CBA_selected)[uint32], id(PopulationModels/Population)[uint32], float32(ResultsComparison_general/AnalysisPerInvestment/inv_'+string(inv_list/InvestId)+'/zone_evaluation/A1i/HistoricNet))')+')';
+			attribute<float32>	dAi:=  ='union_data(.,'+asItemList('rjoin(id(retrieve_characteristics/'+inv_list/LabelText+'/CBA_selected)[uint32], id(PopulationModels/Population)[uint32], float32(ResultsComparison_general/AnalysisPerInvestment/inv_'+string(inv_list/InvestId)+'/zone_evaluation/dAi/HistoricNet))')+')';
+			attribute<float32>  Spc:= MakeDefined(surplus / pop, 0f);
+			attribute<float32>	Cumu_Spc:= cumulate(Spc, muni_id);
+			attribute<float32>	Cumu_dAi:= cumulate(dAi, muni_id);
+			attribute<float32>	Dist_Adam:= dist(centroid_or_mid(Geometry), const(Amsterdam_centroid, ., point_rd)) / 1000f;
+		}
+		
+		container Cumulation_per_ot:= for_each_ne(op_type/Label, 'doSelByOt_id('+string(id(op_type))+')');
+		
+		Template doSelByOt_id {
+			parameter<op_type> in_ot;
+			
+			unit<uint32> selected_cumulation:= subset(Cumulation_results/ot_id = in_ot), StorageName = "= '%projDir%/results/ext_cba_'+ScenariosRan/Name[inScenario]+'_'+op_type/Label[in_ot]+'.dbf'" {
+				attribute<point_rd> Geometry (poly):= Cumulation_results/Geometry[Nr_OrgEntity], StorageName = "= '%projDir%/results/ext_cba_'+ScenariosRan/Name[inScenario]+'_'+op_type/Label[in_ot]+'.shp'";
+				attribute<uint32>	muni_id:= Cumulation_results/muni_id[Nr_OrgEntity];
+				attribute<uint32>	invest_id:= Cumulation_results/invest_id[Nr_OrgEntity];
+				attribute<float32>	surplus:= Cumulation_results/surplus[Nr_OrgEntity];
+				attribute<float32>	A1i:=  Cumulation_results/A1i[Nr_OrgEntity];
+				attribute<float32>	dAi:=  Cumulation_results/dAi[Nr_OrgEntity];
+				attribute<float32>  Spc:= Cumulation_results/Spc[Nr_OrgEntity];
+				attribute<float32>	acumu_dai:= Cumulation_results/Cumu_dAi[Nr_OrgEntity];
+				attribute<float32>	acumu_spc:= Cumulation_results/Cumu_Spc[Nr_OrgEntity];
+				attribute<float32>	Cumu_Spc:= cumulate(Spc, muni_id);
+				attribute<float32>	Cumu_dAi:= cumulate(dAi, muni_id);
+			}
+		
+		}
+		
+	}
+	
+
+}

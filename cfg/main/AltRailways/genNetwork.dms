@@ -1,0 +1,93 @@
+Container NetworksPreparation: Using = "Units;SourceData;PopulationModels;SourceData/Regularly_latticed_altnet;"
+{
+	
+	parameter<uint32>  NumberOfAlternatives:	expr = "uint32(20)";
+	parameter<float32> maxDetour: 				expr = "float32(1.2)";
+	parameter<float32> DistanceDecay: 			expr = "params/b1";
+	
+	container getNetwork: IsTemplate = "True"
+	{
+		parameter<uint32> inYear;
+	
+		unit<uint32> LinkTypes: NrOfRows = 5
+		{attribute<string> Name: ['ModelledRailway', 'ModelledToRealRailwayConnector', 'ConnectionToMunicipalityNode', 'nodeconnector', 'RealRailway'];}
+		
+		unit<uint32> AngleSets: NrOfRows = 4
+		{
+			parameter<uint32> anglestep:		expr = "360 / #AngleSets";
+			parameter<uint32> stepSet:			expr = "#AngleSets / 2";
+			attribute<uint32> minAngle: 		expr = "id(.) > 0 ? anglestep * id(.) - 20: 340";
+			attribute<uint32> maxAngle: 		expr = "id(.) < (#AngleSets - 1) ? anglestep * (id(.)+1) + 20: 20";
+			attribute<uint32> reverseId:		expr = "id(.) + stepSet <= (#AngleSets - 1) ? id(.) + stepSet: id(.) - stepSet";
+			attribute<uint32> prevneighbour: 	expr = "id(.) > 0 ? id(.) - 1: #AngleSets - 1";
+			attribute<uint32> nextneighbour:	expr = "id(.) < (#AngleSets - 1) ? id(.) + 1: 0";
+		}
+		
+		unit<uint32> yearlinks: expr = "StartNet/RailNetwork"
+		{
+			attribute<point_rd> line (arc): expr = "StartNet/RailNetwork/line";
+			attribute<float32>  length:		expr = "StartNet/RailNetwork/length";
+			attribute<LinkTypes>LinkType:	expr = "bool(StartNet/RailNetwork/IsRail) ? 4[LinkTypes] : 2[LinkTypes]";
+			attribute<float32> 	costs: expr = "bool(StartNet/RailNetwork/IsRail) ? StartNet/RailNetwork/Costs : const(params/municonnection_costs, ., float32)";
+			attribute<point_rd>	frompoint:	expr = "first_point(line)";
+			attribute<point_rd> topoint:	expr = "last_point(line)";
+			attribute<Operators/Operators> op_id:		expr = "StartNet/RailNetwork/opnum[Operators/Operators]";
+			//attribute<float32>  costs:     	expr = "LinkType = 4[LinkTypes] ? float32(1): protoCosts";
+			
+			unit<uint32> PointSet: expr = "union_unit(yearlinks, yearlinks)"
+			{attribute<point_rd> points: expr = "union_data(., frompoint, topoint)";}
+			unit<uint32> NodeSet:  expr = "unique(PointSet/points)";
+		}
+	
+		unit<uint32> unioned_network: expr = "union_unit(baseNet, MuniConnections, yearlinks)",
+		DialogData = "line", DialogType = "map"
+		{
+			attribute<point_rd> 	line (arc): 	expr = "union_data(., baseNet/line, MuniConnections/line, yearlinks/line)";
+			attribute<float32>  	length: 		expr = "union_data(., baseNet/length,MuniConnections/length, yearlinks/length)";
+			attribute<Operators/Operators> op_id:	expr = "union_data(., const(0 / 0,baseNet,uint32), const(0 / 0,MuniConnections,uint32),yearlinks/op_id)[Operators/Operators]";
+			attribute<float32>  	costs:			expr = "MakeDefined(union_data(., baseNet/costs, MuniConnections/costs, yearlinks/costs), max(baseNet/costs))";
+			attribute<LinkTypes>  	LinkType:		expr = "union_data(., const(0, baseNet, LinkTypes), const(2, MuniConnections, LinkTypes), const(4, yearlinks, LinkTypes))";
+			attribute<point_rd>		frompoint: 		expr = "first_point(line)";	
+			attribute<point_rd>		topoint: 		expr = "last_point(line)";
+			attribute<float32>		p_angle:		expr = "MakeDefined((atan((pointRow(frompoint) - pointRow(topoint)) / (pointCol(frompoint) - pointCol(topoint))) * float32(180)) / float32(pi()), float32(0))";
+			attribute<bool>			g_up:			expr = "pointRow(frompoint) <= pointRow(topoint)";
+			attribute<bool>			g_right:		expr = "pointCol(frompoint) <= pointCol(topoint)";
+			attribute<float32>		angle:			expr = "switch(case(g_up && g_right, float32(90) - p_angle), float32(90) - p_angle)"; //case(!g_up && g_right, float32(180) - p_angle), float32(270) - p_angle)";
+			
+			unit<uint32> PointSet: expr = "union_unit(unioned_network, unioned_network)"
+			{attribute<point_rd> points: expr = "union_data(., frompoint, topoint)";}
+			
+			unit<uint32> NodeSet:  expr = "unique(PointSet/points)", DialogData = "Points", Dialogtype = "map"
+			{
+				attribute<point_rd> 				Points: expr = "Values";
+				attribute<Zones>					inZone: 			expr = "point_in_polygon(Points, Zones/vlak)";
+				attribute<yearlinks/NodeSet>		ExistingNetNode:	expr = "rlookup(Points, yearlinks/NodeSet/Values)";
+				attribute<Zones>					ZoneId:				expr = "inZone";
+				attribute<Zones>					ZoneCentroid:		expr = "rlookup(Points, Zones/centroid)";
+				attribute<float32>					potential:			expr = "sum(float32((SelZones/Alternatives/TravelTimes/Population * SelZones/Alternatives/TravelTimes/Saturation)[Distances/nr_2]) * Distances/RelDist, Distances/nr_1)";
+				attribute<float32> 					muni_pop:			expr = "MakeDefined(float32(Zones/Population[ZoneId]), float32(0))";
+				attribute<float32>					old_potential:		expr = "sum(float32((SelZones/Alternatives/TravelTimes/Population)[Distances/nr_2]) * Distances/RelDist, Distances/nr_1)";
+				container potYears: 		expr = "for_each_nedv(Years/sYear, 'sum(float32(Zones/Pop' + string(Years/Year) + '[Distances/nr_2]) * Distances/RelDist, Distances/nr_1)', NodeSet, float32)";
+			}
+			
+			attribute<NodeSet> 	ZoneNode (Zones): 	expr = "rlookup(Zones/centroid, NodeSet/Values)";			
+			attribute<NodeSet> 	F1: expr = "rlookup(fromPoint, NodeSet/Values)";
+			attribute<NodeSet> 	F2: expr = "rlookup(toPoint, NodeSet/Values)";
+			
+			//attribute<float32> benefits: expr = "LinkType < 2 || LinkType = 4 ? NodeSet/potential[F1] + NodeSet/potential[F2] / float32(2) : float32(0.000000001)";
+			//attribute<float32> benefits: expr = "LinkType < 2 || LinkType = 4 ? NodeSet/muni_pop[F1] + NodeSet/muni_pop[F2] / float32(2) : float32(0.000000001)";
+			
+			unit<uint32>	Distances: expr = "combine(unioned_network/NodeSet, Zones)"
+			{
+				attribute<point_rd>	NodePoint: 		expr = "unioned_network/NodeSet/Points[nr_1]";	
+				attribute<point_rd> ZonePoint: 		expr = "Zones/centroid[nr_2]";
+				attribute<float32> 	GeoDist:   		expr = "sqrt(sqr(pointrow(NodePoint) - pointrow(ZonePoint)) + sqr(pointcol(NodePoint) - pointcol(ZonePoint)))";
+				attribute<float32> 	RelDist:   		expr = "((GeoDist + Zones/InternalDist[nr_2]) / float32(100)) ^ genNetwork/DistanceDecay";
+			}
+			
+		}
+		
+		unit<uint32> BaseNetwork: expr = "unioned_network";
+		
+	}
+}

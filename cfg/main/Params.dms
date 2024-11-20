@@ -1,0 +1,51 @@
+container Params: Using = "Units;"
+	{
+		parameter<float32> 	WalkKmh:		expr = "RunSettings/Scenarios/WalkKmh[RunSettings/ScenarioId]";
+		parameter<float32> 	TrainKmh: 		expr = "RunSettings/Scenarios/TrainKmh[RunSettings/ScenarioId]";
+		parameter<float32>  LocalKmh:		expr = "RunSettings/Scenarios/LocalKmh[RunSettings/ScenarioId]";
+		parameter<bool>	   	Alonso_model:	expr = "RunSettings/Scenarios/Alonso_model[RunSettings/ScenarioId]";
+		parameter<s>		WaitingSeconds:	expr = "RunSettings/Scenarios/WaitingSeconds[RunSettings/ScenarioId]";
+		parameter<float32> 	b1: 					expr = "RunSettings/Scenarios/scenario_b1[RunSettings/ScenarioId]";		
+		parameter<uint16>	minInvestmentPause:		expr = "RunSettings/Scenarios/InvestmentPause[RunSettings/ScenarioId]";
+		
+		//parameter<speed>	WalkSpeed:		expr = "value(WalkKmh / float32(3.6), speed)";
+		//parameter<speed>	TrainSpeed:		expr = "value(TrainKmh / float32(3.6), speed)";
+		
+		parameter<uint32>   NumberOfAlternatives: 					expr = "NumberOfRandomAlternatives + NumberOfHighProbability_alternatives";
+		parameter<uint32>	NumberOfHighProbability_alternatives:	expr = "RunSettings/Scenarios/nr_HighProbability_alternatives[RunSettings/ScenarioId]";
+		parameter<uint32>	NumberOfRandomAlternatives:				expr = "RunSettings/Scenarios/NumberOfRandomAlternatives[RunSettings/ScenarioId]";
+//		parameter<uint32>   maxNumberOfConnectedAlternatives: 		expr = "RunSettings/Scenarios/MaxNumberConnectedAlternatives[RunSettings/ScenarioId]";
+		parameter<uint32>	NumberOfAlternatives_iter1: 			expr = "NumberOfRandomAlternatives + NumberOfHighProbability_alternatives";
+		//parameter<float32>  dif_op_cost_discount: expr = "float32(0.0)";
+		parameter<float32>  municonnection_costs: expr = "float32(1000 * 1000)";
+		//parameter<s> 		BridgePenalty:	expr = "1800[s]";
+		//parameter<bool>		BridgesBuilt: 	expr = "bool(True)";
+		
+		parameter<uint32>	RandomSeed:		Expr = "100";
+		
+		parameter<float32>  minTimeImprovement:		expr = "(TrainKmh / WalkKmh) / float32(2)";
+		
+		parameter<float32> a1: 		expr = "float32(0.806)";
+		parameter<float32> a2: 		expr = "float32(0.689)";
+		parameter<float32> Alonso_a:expr = "Alonso_model ? float32(0.3) : float32(0)";
+		parameter<uint16>  Year: 	expr = "RunSettings/inYear";
+		parameter<uint16>  Period:	expr = "uint16(10)";
+		parameter<uint32>  Altrntvs:expr = "uint32(25)";
+		
+		parameter<bool>	   InternalTrips: 	expr = "value(0, bool)";
+			
+		parameter<float32> UtilityOfTravTime: 	expr = "float32(-2.398)";
+
+		parameter<float32> SummedImpedance:	 	expr = "sum(float32(StartNet/WholeNetwork/Seconds))";
+		
+		parameter<uint32> 	yearsBetweenInvestments: expr = "uint32(1)";
+		
+		container WaterCrossingCosts {
+			parameter<uint32> 	first_y: 	expr = "1830";
+			parameter<uint32> 	last_y:		expr = "1870";
+			parameter<float32>	first_mod:	expr = "4.0f";
+			parameter<uint32>   curr_y:		expr = "uint32(RunSettings/OpenYear) - first_y";
+			parameter<float32>  curr_mod:	expr = "max_elem(first_mod - (((first_mod - 1.0f) / float32(last_y - first_y)) * float32(curr_y)), float32(1))";
+		}
+		
+	}

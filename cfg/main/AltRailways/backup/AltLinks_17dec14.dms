@@ -1,0 +1,152 @@
+Container AltLinks: Using = "Units;Classifications;SourceData;"
+{
+	parameter<uint16> 	nrOfSteps: 	expr = "20";
+	
+	Container ManageAltLinkGeneration: IsTemplate = "True"
+	{
+			
+		parameter<Zones>	fromZone: 	expr = "33"; // zoneofAmsterdam
+		parameter<Zones> 	toZone:		expr = "541"; // zone of Maastricht
+		
+		parameter<float32> max_dist;
+		
+		unit<uint32> inBaseNetwork;
+		unit<uint32> inNodeSet;	
+		
+		attribute<float32> Real_Costs	(inBaseNetwork): expr = "ConstructionCosts";
+		attribute<float32> ref_Costs	(inBaseNetwork): expr = "MakeDefined(ConstructionCosts + inBaseNetwork/length^float32(0.5), ConstructionCosts + inBaseNetwork/Length)";
+		attribute<float32> ref_Length	(inBaseNetwork): expr = "MakeDefined(inBaseNetwork/LinkType <> 2 ? (inBaseNetwork/length) + float32(ConstructionCosts^float32(0.5)): inBaseNetwork/length * float32(10000), inBaseNetwork/length * float32(10000))";
+		
+		container costs_based_path: 	expr = "genAlternativeLinks(fromZone, toZone, inBaseNetwork, inNodeSet, 'ref_Costs')";
+		container length_based_path:	expr = "genAlternativeLinks(fromZone, toZone, inBaseNetwork, inNodeSet, 'ref_Length')";
+		
+		parameter<float32> costs_dist: 	expr = "costs_based_path/bestlinks/dist";
+		parameter<float32> length_dist: expr = "length_based_path/bestlinks/dist";
+		
+		unit<uint32> bestlinks: expr = "= costs_dist <= max_dist && costs_based_path/bestlinks/this_r_value >= length_based_path/bestlinks/this_r_value ? 'costs_based_path/bestlinks' : 'length_based_path/bestlinks'";
+		
+	}
+	
+	
+	Container genAlternativeLinks: IsTemplate = "true"
+	{
+		// later in template	
+		
+		parameter<Zones>	fromZone: 	expr = "33"; // zone of Amsterdam
+		parameter<Zones> 	toZone:		expr = "541"; // zone of Maastricht
+		
+		unit<uint32> inBaseNetwork;
+		unit<uint32> inNodeSet;
+			
+		parameter<string> cost_ref;
+		
+		attribute<float32> LinkBenefits (inBaseNetwork): expr = "inBaseNetwork/benefits";
+		attribute<float32> LinkCosts	(inBaseNetwork): expr = "= cost_ref";
+		
+		container init 
+		{
+			unit<uint32> BaseNetwork: 	expr = "inBaseNetwork";	
+			unit<uint32> NodeSet:	 	expr = "inNodeSet";
+		
+			parameter<float32> best_routing_value: expr = "routing_value";
+			parameter<float32> routing_value: 	expr = "iif(DefLinks/DefLinks/Dist < max_dist, sum(DefLinks/DefLinks/benefits) / sum(Deflinks/Deflinks/realcosts), float32(1) / sum(Deflinks/Deflinks/realcosts))";
+			parameter<uint16>  bestIter:		expr = "uint16(0)";
+			parameter<uint16>  bestGeoEfficiencyIter: expr = "bestIter";
+				
+			container fromNodes: 	expr = "selectNodeInZone(BaseNetwork, NodeSet, fromZone, toZone)";
+			container toNodes:		expr = "selectNodeInZone(BaseNetwork, NodeSet, toZone, fromZone)";
+			
+			attribute<float32> 	proto_nodeset (NodeSet): 	expr = "dijkstra(BaseNetwork/length, BaseNetwork/F1, BaseNetwork/F2, fromNodes/PossibleNodes/Nr_OrgEntity)";
+			attribute<uint32> 	protoLinks (BaseNetwork): 	expr = "trace_back(BaseNetwork/F1, BaseNetwork/F2, proto_nodeset/TraceBack, toNodes/FlowNode)";	
+			container DefLinks: expr = "getDefLinks()";
+		}	
+		
+		container getBestRoute: expr = "loop(CallRoutingLoop, uint16(20))";
+		
+		// get links for each link into one collection here.
+		unit<uint32> bestlinks: expr = "getBestRoute/LastIter/refBestIter";
+	}
+	
+	container CallRoutingLoop: isTemplate = "True"
+	{
+		parameter<uint16> NrIter;
+		container currValue;
+	    container nextValue;
+		
+	    unit<uint32> BaseNetwork: 	expr = "= previousIter + '/BaseNetwork'";
+	    unit<uint32> NodeSet:		expr = "= previousIter + '/NodeSet'";
+	    
+	    parameter<float32> best_routing_value:			expr = "= 'iif('+ previousIter +'/best_routing_value < routing_value, routing_value, '+ previousIter +'/best_routing_value)'";
+	    parameter<float32> routing_value:				expr = "iif(DefLinks/DefLinks/Dist < max_dist, sum(DefLinks/DefLinks/benefits) / sum(Deflinks/Deflinks/costs), float32(1) / sum(Deflinks/Deflinks/costs))";
+	    parameter<string>  previousIter: 				expr = "iif(NrIter = Uint16(0), 'init', 'iter' + string(NrIter - uint16(1)))";
+	    parameter<uint16>  bestIter:					expr = "= 'iif('+ previousIter +'/best_routing_value < routing_value, NrIter, ' + previousIter + '/bestIter)'"; 
+	    unit<uint32> 	   refBestIter: 				expr = "= 'iter' + string(bestIter) + '/DefLinks/DefLinks'";
+	    
+	    container fromNodes: 	expr = "selectNodeInZone(BaseNetwork, NodeSet, fromZone, toZone)";
+		container toNodes:		expr = "selectNodeInZone(BaseNetwork, NodeSet, toZone, fromZone)";
+		
+		parameter<float32> power: 				expr = "float32(0) + (float32(NrIter) / float32(10))";
+		attribute<float32> proto_impedance (BaseNetwork): 	
+		 	expr = "MakeDefined(float32(LinkCosts) / float32(LinkBenefits)^power, float32(0))";
+		attribute<float32> 	proto_nodeset (NodeSet):
+			expr = "dijkstra(proto_impedance, BaseNetwork/F1, BaseNetwork/F2, fromNodes/PossibleNodes/Nr_OrgEntity)";
+		attribute<uint32> 	protoLinks 	(BaseNetwork): expr = "trace_back(BaseNetwork/F1, BaseNetwork/F2, proto_nodeset/TraceBack, toNodes/FlowNode)";	
+		
+	    container DefLinks: expr = "getDefLinks()";
+	}
+	
+	container getDefLinks: IsTemplate = "True"
+	{
+		unit<uint32> DefLinks: expr = "subset(protoLinks > 0)", DialogData = "line", DialogType = "map"
+		{	
+			attribute<float32>	benefits:	expr = "LinkBenefits[Nr_OrgEntity]";
+			attribute<point_rd> line (arc):	expr = "BaseNetwork/line[Nr_OrgEntity]";
+			attribute<float32>	length: 	expr = "BaseNetwork/length[Nr_OrgEntity]";
+			attribute<float32>	costs: 		expr = "LinkCosts[Nr_OrgEntity]";
+			attribute<uint32>	LinkType:	expr = "BaseNetwork/LinkType[Nr_OrgEntity]";
+			attribute<point_rd>	frompoint:	expr = "first_point(line)";
+			attribute<point_rd> topoint:	expr = "last_point(line)";
+			attribute<float32>  realcosts:	expr = "Real_Costs[Nr_OrgEntity]";
+			
+			unit<uint32>	PointSet: 	expr = "union_unit(DefLinks, DefLinks)" { attribute<point_rd>	Points: expr = "union_data(PointSet, frompoint, topoint)"; } 
+			unit<uint32> 	NodeSet: 	expr = "unique(PointSet/Points)" 		{ attribute<point_rd>	Values; }
+			unit<uint32> 	Distances: 	expr = "combine(NodeSet, NodeSet)" 		{ attribute<float32> GeoDist: expr = "sqrt(sqr(pointrow(NodeSet/Values[nr_1]) - pointrow(NodeSet/Values[nr_2])) + sqr(pointcol(NodeSet/Values[nr_1]) - pointcol(NodeSet/Values[nr_2])))";}
+			
+			parameter<float32> GeoEfficiency: 	expr = "sum(length) / max(Distances/GeoDist)";
+			parameter<float32> Dist:			expr = "sum(length)";
+			parameter<float32> this_k:			expr = "power";
+			parameter<float32> this_r_value:	expr = "routing_value";
+		}
+	}
+	
+	container selectNodeInZone: IsTemplate = "True"
+	{
+		unit<uint32> BaseNetwork;
+		unit<uint32> NodeSet;
+		parameter<Zones> inZone;
+		parameter<Zones> destZone;
+	
+		attribute<bool> f_ConnectToNet (NodeSet): expr = "connectedZones/connectedZones[inZone] ? connectedZones/selNodes: NodeSet/ZoneCentroid = inZone";
+		
+		unit<uint32> PossibleNodes: expr = "subset(NodeSet/inZone = inZone && f_ConnectToNet)", DialogData = "point", DialogType = "map"
+		{
+			attribute<point_rd>	point: 			expr = "NodeSet/Points[Nr_OrgEntity]";
+			attribute<float32>  random:			expr = "rnd_uniform(RunSettings/CurrentInvestment, ., range(float32, float32(0), float32(0.001)))";
+			attribute<float32>  impedances:		expr = "proto_nodeset[Nr_OrgEntity] + random";
+			attribute<uint32>	defToNode:		expr = "uint32(float32(random) = min(random))";
+		}
+		attribute<uint32>	FlowNode (NodeSet):	expr = "MakeDefined(PossibleNodes/defToNode[rlookup(id(NodeSet), PossibleNodes/Nr_OrgEntity)], uint32(0))";
+		
+		unit<uint32> DistancesTo: expr = "subset(BaseNetwork/Distances/nr_2 = destZone)"
+		{
+			attribute<NodeSet> 	Node: 			expr = "BaseNetwork/Distances/nr_1[Nr_OrgEntity]";	
+			attribute<bool>		potNode:		expr = "!IsNull(rlookup(Node, PossibleNodes/Nr_OrgEntity))";
+			attribute<float32>	protoGeoDist: 	expr = "BaseNetwork/Distances/GeoDist[Nr_OrgEntity]";
+			attribute<float32>	DefGeoDist:		expr = "iif(potNode, protoGeoDist, max(protoGeoDist) + float32(1))";
+			attribute<bool>		selNode:		expr = "iif(DefGeoDist = min(DefGeoDist), True, False)";
+		}
+		
+		unit<uint32> DefNode: expr = "subset(DistancesTo/selNode)", DialogData = "point", DialogType = "map"
+		{	attribute<NodeSet>	Node: expr = "DistancesTo/Node[Nr_OrgEntity]"; attribute<point_rd> point: expr = "NodeSet/Points[Node]";}
+	}	
+}

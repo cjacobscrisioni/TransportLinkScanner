@@ -1,0 +1,33 @@
+Container SimpleDecisionEvaluator: Using = "RunSettings;"
+{
+	
+	container AltLink: expr = "LinkBenefits/getInbetweens/getAltRoute(0)";
+
+	unit<uint32> Ran: StorageName = "= '%ProjDir%/runs/'+ Scenarios/Name[ScenarioId] +'/runtrack.dbf'", ExplicitSuppliers = "StoreInvestment;"
+	{
+		attribute<uint32> InvestId:	expr = "const(uint32(RunSettings/CurrentInvestment),.,uint32) + 1";
+		attribute<uint32> Year:		expr = "const(uint32(RunSettings/OpenYear) + params/yearsBetweenInvestments,.,uint32)";
+	}	
+
+	unit<uint32> chosenAdditionNet: expr = "AltLink/route";
+	
+	parameter<uint16> RandomOperator: expr = "uint16(1)";
+	
+	parameter<string> NetStoragePlace: expr = "'%projDir%/runs/'+ RunSettings/Scenarios/Name[RunSettings/ScenarioId] +'/decade_net/' + RunSettings/curFile";
+	
+	unit<uint32> StoreInvestment: 
+		expr = "union_unit(StartNet/RailNetwork, chosenAdditionNet)",
+		StorageName = "= NetStoragePlace + '.dbf'",
+		DialogData = "line",
+		DialogType = "map"
+	{
+		attribute<point_rd> line (arc): expr = "union_data(.,StartNet/RailNetwork/line, chosenAdditionNet/line)", StorageName = "= NetStoragePlace + '.shp'";
+		attribute<uint16>	IsRail:		expr = "union_data(.,StartNet/RailNetwork/IsRail, uint16(chosenAdditionNet/isRail))";
+		attribute<uint16>   OpNum:		expr = "union_data(.,StartNet/RailNetwork/OpNum, const(RandomOperator,chosenAdditionNet,uint16))";
+		attribute<uint32>   InvestId:	expr = "union_data(.,StartNet/RailNetwork/InvestId, const(uint32(RunSettings/CurrentInvestment),chosenAdditionNet,uint32))";
+		attribute<uint16>	Year:		expr = "union_data(.,StartNet/RailNetwork/Year, const(uint16(RunSettings/OpenYear),chosenAdditionNet,uint16))";
+		attribute<m>  		length: 	expr = "arc_length(line, m)";
+		attribute<float32>  Costs:		expr = "union_data(.,StartNet/RailNetwork/Costs, chosenAdditionNet/Costs)";
+		attribute<s>		Seconds: 	expr = "bool(IsRail) ? length / params/TrainSpeed : length / params/WalkSpeed";	
+	}
+}

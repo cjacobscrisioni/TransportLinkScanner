@@ -1,0 +1,657 @@
+container SourceData: Using ="Units;params;PopulationModels;"
+{	
+	
+	unit<uint8> CostsPerSoilType: expr = "= RunSettings/Scenarios/cost_def_eval[RunSettings/ScenarioId]";
+
+	unit<uint8> EstimatedCosts: nrOfRows = 3 // costs per 100m
+	{ attribute<string>Type: ['Sand, Gravel or Loam', 'Peat or Clay', 'Spanned River']; attribute<float32> Cost: [12.38, 64.57, 2760.61]; parameter<float32> Const: expr = "float32(1980280)"; } //estimations done after review of JEG.
+
+	unit<uint8> RietveldBruinsma_costs: nrOfRows = 3
+	{ attribute<string>Type: ['Sand, Gravel or Loam', 'Peat or Clay', 'Spanned River']; attribute<float32> Cost: expr = "const(1,.,float32)"; parameter<float32> Const: expr = "float32(0)"; } 
+	
+	unit<uint8> equal_costs: nrOfRows = 3
+	{ attribute<string>Type: ['Sand, Gravel or Loam', 'Peat or Clay', 'Spanned River']; attribute<float32> Cost: expr = "const(1,.,float32)"; parameter<float32> Const: expr = "float32(1)"; } 
+	
+	container Regularly_latticed_altnet
+	{
+		unit<uint32> baseNet: 
+			StorageName = "%dataDir%/altnet/target_lines_31mrt14.dbf",
+			StorageReadOnly = "True",
+			SyncMode = "none",
+			DialogData = "line",
+			DialogType = "map"
+		{
+			attribute<point_rd> line (arc):  StorageName = "%dataDir%/altnet/target_lines_31mrt14.shp",	StorageReadOnly = "True", SyncMode = "none";
+			attribute<float32>	Length: 	expr = "arc_length(line, float32)";
+			
+			
+			attribute<float32>  s_0;
+			attribute<float32>  s_1;
+			attribute<float32>  s_2;
+			attribute<float32>  s_3;
+			attribute<float32>  s_4;
+			attribute<float32>  s_5;
+			attribute<float32>  s_6;
+			attribute<float32>  s_7;
+			attribute<float32>	w_2013;
+			attribute<float32>	m_NL_1851;
+			attribute<float32>	m_NL_1930;
+			attribute<string> 	NoWater;
+			attribute<uint32>   NoWater_uint32: expr = "value(NoWater, uint32)";
+			
+			attribute<float32> 	water_1851: expr = "!bool(NoWater_uint32) ? min_elem(max_elem(s_0, w_2013, length - m_NL_1851), length): float32(0)";
+			attribute<float32>  water_1930: expr = "!bool(NoWater_uint32) ? min_elem(max_elem(s_0, w_2013, length - m_NL_1930), length): float32(0)";
+			
+			attribute<float32>	dif_water_est: expr = "s_0 - (length - m_NL_1851)";
+			
+			container c1851: expr = "for_each_nedv('c_' + Soils/net_id, Soils/exec1851, baseNet, float32)" 
+			{
+				container getCosts: expr = "for_each_nedv(Soils/net_id, "
+					"'iif(c1851/c_' + Soils/net_id + ' > float32(1), (c1851/c_' + Soils/net_id + ') * float32(' + string(Soils/CostPm) + '), float32(0))', "
+					"baseNet, float32)";
+				container getCostsSq: expr = "for_each_nedv(Soils/net_id, "
+					"Soils/Type < 2[uint8] ? "					
+						"'iif(c1851/c_' + Soils/net_id + ' > float32(1), (c1851/c_' + Soils/net_id + ') * float32(' + string(Soils/CostPm) + '), float32(0))' : "
+						"'iif(c1851/c_' + Soils/net_id + ' > float32(1), (c1851/c_' + Soils/net_id + ') * float32(' + string(Soils/CostPm) + ') * params/WaterCrossingCosts/curr_mod, float32(0))', "
+					"baseNet, float32)";
+				attribute<float32>  Costs 	(baseNet):	expr = "= 'add(' + AsItemList('getCosts/' + Soils/net_Id) + ')'";
+				attribute<float32>  CostsSq (baseNet):	expr = "= 'add(' + AsItemList('getCostsSq/' + Soils/net_Id) + ')'";
+			}
+			container c1930: expr = "for_each_nedv('c_' + Soils/net_id, Soils/exec1930, baseNet, float32)"
+			{
+				container getCosts: expr = "for_each_nedv(Soils/net_id, "
+					"Soils/Type < 2[uint8] ? "
+						"'iif(c1930/c_' + Soils/net_id + ' > float32(1), (c1930/c_' + Soils/net_id + ') * float32(' + string(Soils/CostPm) + '), float32(0))' : "
+						"'iif(c1930/c_' + Soils/net_id + ' > float32(1), (c1930/c_' + Soils/net_id + ') * float32(' + string(Soils/CostPm) + ')*float32(10), float32(0))', "
+					"baseNet, float32)";	
+				container getCostsSq: expr = "for_each_nedv(Soils/net_id, "
+					"'iif(c1930/c_' + Soils/net_id + ' > float32(1), (c1930/c_' + Soils/net_id + ') * float32(' + string(Soils/CostPm) + '), float32(0))', "
+					"baseNet, float32)";	
+				attribute<float32>  Costs (baseNet):	expr = "= 'add(' + AsItemList('getCosts/' + Soils/net_Id) + ')'";
+				attribute<float32>  CostsSq (baseNet):	expr = "= 'add(' + AsItemList('getCostsSq/' + Soils/net_Id) + ')'";
+			}
+			attribute<float32> costs_1851: 		expr = "c1851/Costs";
+			attribute<float32> costs_1930: 		expr = "c1930/Costs";
+			attribute<float32> costs_1851sq: 	expr = "c1851/CostsSq";
+			attribute<float32> costs_1930sq:	expr = "c1930/CostsSq";
+			attribute<float32> random:			expr = "rnd_uniform(params/RandomSeed, ., range(float32, float32(0), float32(1000)))";
+			attribute<float32> RietveldBruinsma_costs: expr = "Length / float32(1000) + (float32(20) * float32(RunSettings/inYear < uint16(1852) && water_1851 > float32(250))) + (float32(20) * float32(RunSettings/inYear >= uint16(1852) && water_1930 > float32(250)))";
+			attribute<float32> curr_costs: 		expr = "RunSettings/OpenYear < uint16(1852) ? costs_1851 : costs_1930";
+			attribute<float32> curr_costs_state_eval: expr = "Operators/StateActivation < RunSettings/OpenYear ? curr_costs_sq : curr_costs";
+			attribute<float32> equal_costs:		expr = "length";
+			attribute<float32> curr_costs_sq: 	expr = "RunSettings/OpenYear < uint16(1852) ? costs_1851sq : costs_1930sq";
+			attribute<float32> costs: 			expr = "= RunSettings/Scenarios/costfield_eval[RunSettings/ScenarioId]";
+			
+			
+			attribute<float32> costs1851P100m: expr = "(costs_1851 / length) * float32(100)";
+					
+			attribute<point_rd> first_point: expr = "first_point(line)";
+			attribute<point_rd> last_point:  expr = "last_point(line)";
+			unit<uint32> PointSet: expr = "union_unit(baseNet, baseNet)" {attribute<point_rd> points: expr = "union_data(., first_point, last_point)";}
+			unit<uint32> NodeSet:  expr = "unique(PointSet/Points)";
+		}
+		container railroad_basenet_connectors
+		{
+			unit<uint32> netconnections: StorageName = "%dataDir%/altnet/basenetconnections/basenetconnections.dbf", StorageReadOnly = "True", DialogData = "line", DialogType = "Map"
+			{
+				attribute<point_rd> line (arc): 	StorageName = "%dataDir%/altnet/basenetconnections/basenetconnections.shp", StorageReadOnly = "True";
+				attribute<float32>  length:			expr = "arc_length(line, float32)";
+				attribute<uint32> 	rastercount:	expr = "pcount(points/SequenceNr)";
+				attribute<float32> 	raster_repres: 	expr = "float32(rastercount[float32] * dynastep) / length";
+				attribute<float32>  rawcosts:		expr = "sum(points/soilcosts, points/SequenceNr)";
+				attribute<float32>  normalizedcosts:expr = "rawcosts / raster_repres";
+				
+				parameter<float32> dynastep:= 25f;
+				
+				unit<uint32> points:= dyna_point(first_node(line), last_node(line), dynastep) {
+					attribute<point_rd> Geometry:= point;
+					attribute<Soils> soiltype_raster:= CostsGrid/soiltype_raster[point[CostsGrid]];
+					attribute<float32> 		soilcosts:= soils/costpm[soiltype_raster] * dynastep;
+				}
+
+			}
+		}
+		unit<uint32> MuniNodes: expr = "combine(baseNet/NodeSet, Zones)"
+		{
+			attribute<point_rd> frompoint: 	expr = "baseNet/NodeSet/Values[first_rel]";
+			attribute<point_rd> topoint: 	expr = "Zones/centroid[second_rel]";
+			attribute<float32> 	dist: 		expr = "dist(baseNet/NodeSet/Values[first_rel], Zones/centroid[second_rel])";
+			attribute<bool> 	sel:		expr = "dist > float32(500) && dist < float32(1501)";
+		}	
+		
+		unit<uint32> MuniConnections: 	expr = "subset(MuniNodes/sel)"
+		{
+			attribute<point_rd> frompoint: 	expr = "MuniNodes/frompoint[Nr_OrgEntity]";
+			attribute<point_rd> topoint:	expr = "MuniNodes/topoint[Nr_OrgEntity]";
+			attribute<point_rd> line (arc):	expr = "points2sequence(genlines/points, genlines/ids, genlines/ord)"; 
+			attribute<float32>	length:		expr = "arc_length(line, float32)";
+			attribute<uint16>	municonn:	expr = "const(1, ., uint16)";
+			attribute<float32>  costs:		expr = "const(params/municonnection_costs,., float32)";
+			
+			unit<uint32> genlines: expr = "union_unit(MuniConnections, MuniConnections)"
+			{
+				attribute<point_rd> 		points:		expr = "union_data(., frompoint, topoint)";
+				attribute<MuniConnections>	ids: 		expr = "union_data(., id(MuniConnections), id(MuniConnections))";
+				attribute<uint32> 			ord:		expr = "union_data(., const(0, MuniConnections, uint32), const(1, MuniConnections, uint32))";
+			}
+		}
+	}
+	container Railroads
+	{
+		container Railroads
+		{
+			unit<uint32> Railroad_data_in:
+				StorageName     = "%dataDir%/railroads/nl_raillines.dbf",
+				DialogData      = "line",
+				DialogType      = "Map",
+				SyncMode        = "none",
+				StorageReadOnly = "True"
+			{
+				attribute<point_rd> line(arc):
+					label           = "Netwerk Nederland",
+					StorageName     = "%dataDir%/railroads/nl_raillines.shp",
+					StorageReadOnly = "True";
+				attribute<Railroad_data_in> id:     expr = "id(Railroad_data_in)", DisableStorage = "True";
+				attribute<float32> 			length: expr = "arc_length(line, float32)";
+				attribute<uint16>			Open1;
+				attribute<uint16>			Close1;
+				attribute<uint16>			Reopen;
+				attribute<uint16>			Reclose;
+				attribute<uint16>			Rereopen;
+				attribute<uint16>			Rereclose;
+				attribute<string>			Expl;
+				attribute<uint16>			LocalTrck;
+				attribute<uint16>			Foreign;
+				attribute<uint16>			ConnExt;
+				attribute<uint16>			Concessie;
+				attribute<uint16>			Staat;
+				attribute<uint16>			ProvHoofd;
+				attribute<uint16>			Haven;
+				attribute<float32>			ConnectorCost:	expr = "CalcCosts/Costs"; 
+				attribute<float32> 			s_0;
+				attribute<float32> 			s_1;
+				attribute<float32> 			s_2;
+				attribute<float32> 			s_3;
+				attribute<float32> 			s_4;
+				attribute<float32> 			s_5;
+				attribute<float32> 			s_6;
+				attribute<float32> 			s_7;
+				attribute<float32>			m_NL_1930;
+				attribute<float32>			water: expr = "NoWater < 1 ? max_elem(float32(round(length - m_NL_1930)), float32(0)) : float32(0)";
+				attribute<uint32>			NoWater;
+				attribute<string>			Statebridg;
+				attribute<uint32>			InvestId;
+				
+				container calcCosts: expr = "for_each_nedv('c_' + Soils/net_id, Soils/exec, Railroad_data_in, float32)"
+				{
+					container getCosts: expr = "for_each_nedv(Soils/net_id, "
+						"'iif(calcCosts/c_' + Soils/net_id + ' > float32(1), calcCosts/c_' + Soils/net_id + ' * float32(' + string(Soils/CostPm) + '), float32(0))', "
+						"Railroad_data_in, float32)";	
+					attribute<float32>  Costs (Railroad_data_in):	expr = "= 'add(' + AsItemList('getCosts/' + Soils/net_Id) + ')'";
+				}
+			}
+								
+			unit<uint32> Railroad_data: expr = "subset(Railroad_data_in/length > float32(0))",
+				DialogData      = "line",
+				DialogType      = "Map"
+			{
+				attribute<point_rd> 		line(arc):		expr = "Railroad_data_in/line[Nr_OrgEntity]";
+				attribute<Railroad_data>  	id:         	expr = "id(Railroad_data)";
+				attribute<float32> 			length: 		expr = "Railroad_data_in/length[Nr_OrgEntity]";
+				attribute<uint16>			Open1:			expr = "Railroad_data_in/Open1[Nr_OrgEntity]";
+				attribute<uint16>			Close1:			expr = "Railroad_data_in/Close1[Nr_OrgEntity]";
+				attribute<string>			Expl:			expr = "Railroad_data_in/Expl[Nr_OrgEntity]";
+				attribute<uint16>			LocalTrck:		expr = "Railroad_data_in/LocalTrck[Nr_OrgEntity]";
+				attribute<uint16>			Foreign:		expr = "Railroad_data_in/Foreign[Nr_OrgEntity]";
+				attribute<uint16>			ConnExt:		expr = "Railroad_data_in/ConnExt[Nr_OrgEntity]";
+				attribute<uint16>			Staat:			expr = "Railroad_data_in/Staat[Nr_OrgEntity]";
+				attribute<uint16>			Concessie:		expr = "Railroad_data_in/Concessie[Nr_OrgEntity]"; //, StorageName = "%dataDir%/railroads/invest_track.dbf";
+				attribute<uint16>			StateBridge:	expr = "MakeDefined(uint16(Railroad_data_in/StateBridg[Nr_OrgEntity]), uint16(0))";
+				attribute<bool> 			Bridge:			expr = "StateBridge > uint16(0)";
+				attribute<Concessies>		Concessie_id:	expr = "rlookup(Concessie, Concessies/Values)";
+				attribute<Investments>		InvestId:		expr = "Concessies/InvestId[Concessie_id]"; //, StorageName = "%dataDir%/railroads/invest_track.dbf";
+				attribute<bool>				IsRail:			expr = "const(true, Railroad_data, bool)";
+				attribute<s>				Seconds:		expr = "value(length / (TrainKmh / float32(3.6)),s)";
+				attribute<float32>			ConnectorCost:	expr = "Railroad_data_in/ConnectorCost[Nr_OrgEntity]";
+				attribute<float32>			CostPKm:		expr = "ConnectorCost / (length / float32(1000))";
+				attribute<point_rd> 		first_point: 	expr = "first_point(line)";
+				attribute<point_rd> 		last_point:  	expr = "last_point(line)";
+				attribute<Operators/Real_Operators>		OperatorId:		expr = "rlookup(Expl, Operators/Real_Operators/Name)";
+				attribute<uint32>			OpType:			expr = "switch(case(bool(Staat), 2), case(bool(LocalTrck), 1), 0)";
+				
+				attribute<Stations/RailStations>fromStation:expr = "rlookup(first_point, Stations/RailStations/centroid)";
+				attribute<Stations/RailStations>  toStation:expr = "rlookup(last_point, Stations/RailStations/centroid)";
+				attribute<Zones>				   fromZone:expr = "point_in_polygon(first_point, Zones/vlak)";
+				attribute<string>			   fromZoneName:expr = "Zones/ZoneName[fromZone]";
+				attribute<Zones>				   	 toZone:expr = "point_in_polygon(last_point, Zones/vlak)";
+				attribute<string>			   	 toZoneName:expr = "Zones/ZoneName[toZone]";
+				
+				attribute<uint16>			Haven:			expr = "iif(Zones/isHaven[fromZone] > uint16(0) ||	Zones/isHaven[toZone] 	> uint16(0) || Railroad_data_in/Haven[Nr_OrgEntity] > uint16(0), uint16(1), uint16(0))";
+				attribute<uint16>			ProvHoofd:		expr = "iif(Zones/isProvHoofd[fromZone] 	+ 	Zones/isProvHoofd[toZone] + Railroad_data_in/ProvHoofd[Nr_OrgEntity] 	> uint16(0), uint16(1), uint16(0))";
+				attribute<uint16>			BorderZone:		expr = "iif(Zones/isBorderZone[fromZone] 	+ 	Zones/isBorderZone[toZone]	> uint16(0), uint16(1), uint16(0))";
+				
+				attribute<NodeSet>			F1:				expr = "rlookup(first_point, NodeSet/Values)";
+				attribute<NodeSet>			F2:				expr = "rlookup(last_point, NodeSet/Values)";
+				
+				unit<uint32> PointSet: expr = "union_unit(Railroad_data, Railroad_data)"
+					{ attribute<point_rd> point:   expr = "union_data(PointSet, Railroad_data/first_point, Railroad_data/last_point)";}
+				
+				unit<uint32> NodeSet: expr       = "unique(PointSet/point)", DialogData = "Values", DialogType = "Map"
+					{ attribute<point_rd> Values; attribute<Investments> firstInvestId: expr = "min_elem(MakeDefined(rjoin(id(.), F1, InvestId), 9999), MakeDefined(rjoin(id(.), F2, InvestId), 9999))";}
+				unit<uint32> Concessies:	expr = "unique(Concessie)"
+				{
+					attribute<uint16> 		OpenYear: 	expr = "min(Open1, Concessie_id)";
+					attribute<float32>		Sequence: 	expr = "float32(OpenYear) + (float32(id(.)) / float32(100))";
+					attribute<Investments> 	InvestId:	expr = "rlookup(Sequence, Investments/Values)";
+					attribute<float32>		Length:		expr = "sum(Railroad_data/length, Concessie_id)";
+					attribute<Years>		InYear_rel: expr = "classify(OpenYear, Years/Year[uint16])";
+					attribute<bool>			InWindow:	expr = "float32(OpenYear) - float32(Years/Year[InYear_rel]) < (RunSettings/LengthWindowSize + 1f)";
+				}
+				unit<uint32> Investments:	expr = "unique(Concessies/Sequence)"
+				{
+					attribute<.>			id:		expr = "id(.)";
+					attribute<uint16>		OpenYear:	expr = "min(Concessies/OpenYear, Concessies/InvestId)";
+					attribute<uint16> 	   	inYear: 	expr = "min_elem(dist_f_9 < uint16(10) ? OpenYear - dist_f_9: OpenYear, uint16(1929))";
+					attribute<PopulationModels/PopulationModelYears> PopulationModelYear: expr = "rlookup(uint32(inYear) + 10, PopulationModels/PopulationModelYears/Year)";
+					attribute<uint16>	   	dist_f_9:	expr = "uint16(10) - (uint16(9) - value(substr(string(OpenYear), 3, 1), uint16))";
+					attribute<Operators/Real_Operators>	Operator:	expr = "first(OperatorId, InvestId)";
+					attribute<float32>		InvLength:  expr = "sum(Concessies/length, Concessies/InvestId)";
+					attribute<float32> 		CumuLength: expr = "cumulate(InvLength)";
+					attribute<uint32>		State:= uint32(Operators/Historical_Operators/State[Operator]);
+					attribute<uint32>		Local:= uint32(Operators/Historical_Operators/Local[Operator]);
+					attribute<uint32>		Harbour:= uint32(max(Haven, InvestId));
+					attribute<uint32>		Capital:= uint32(max(ProvHoofd, InvestId));
+					attribute<uint32>		Border:=  uint32(max(BorderZone, InvestId));
+				}
+				
+				unit<uint32> exp_net:= Railroad_data, StorageName = "%ProjDir%/results/railroads_info.dbf" {
+					attribute<point_rd> 	Geometry (arc):= line, StorageName = "%ProjDir%/results/railroads_info.shp";
+					attribute<string> 		Operator:= Expl;
+					attribute<Investments> 	InvId:= InvestId;
+					attribute<uint32>		OpenYear:= uint32(Investments/OpenYear[InvId]);
+					attribute<string>		OpenDate:= '01-01-'+string(Openyear);
+				}
+			}
+			
+			unit<uint32> EmptyNet:
+				StorageName     = "%dataDir%/emptynet/emptynet.dbf",
+				DialogData      = "line",
+				DialogType      = "Map",
+				SyncMode        = "none",
+				StorageReadOnly = "True"
+			{
+				attribute<point_rd> line (arc):
+					label           = "Leeg net",
+					StorageName     = "%dataDir%/emptynet/emptynet.shp",
+					StorageReadOnly = "True";
+				attribute<uint16>  IsRail;
+				attribute<float32> Costs;
+				attribute<m>	   Len: 	expr = "arc_length(line, m)";
+			}
+		}
+		
+		
+		Container Stations
+		{
+			unit<uint32> RailStations:
+				StorageName     = "%dataDir%/railroads/nl_stations.shp",
+				StorageType		= "gdal.vect",
+				DialogData      = "centroid",
+				DialogType      = "Map",
+				SyncMode        = "none",
+				StorageReadOnly = "True"
+			{
+				attribute<point_rd> centroid;
+					//label           = "Stations Nederland";
+					//StorageName     = "%dataDir%/railroads/nl_stations.shp",
+					//StorageReadOnly = "True";
+				attribute<RailStations>  	id:         expr = "id(RailStations)", DisableStorage = "True";
+				attribute<string>			Station;
+				attribute<uint16>			Open_Year;
+				attribute<uint16>			Close_Year;
+				attribute<uint16>			Meetpunt;
+				attribute<Railroads/Railroad_data/Investments> InvestId: expr = "Railroads/Railroad_data/NodeSet/firstInvestId[rlookup(centroid,Railroads/Railroad_data/NodeSet/Values)]";
+				
+										
+				// connect with communities
+				unit<uint32> ZoneConnect: expr = "combine(Zones, RailStations)"
+				{
+					attribute<Zones>	fromZone:		expr = "Zones/id[first_rel]";
+					attribute<RailStations> toStation:	expr = "RailStations/id[second_rel]";
+					attribute<point_rd>	ZonePoint: 		expr = "Zones/centroid[first_rel]";						
+					attribute<point_rd> StationPoint:	expr = "RailStations/centroid[second_rel]";
+					attribute<float32>	Distance:		expr = "dist(ZonePoint, StationPoint)";
+					attribute<float32>  nearestDist:	expr = "getNearest/nearestDist[toStation]";
+					attribute<bool>		shortestConn:	expr = "Distance = nearestDist";
+					attribute<Railroads/Railroad_data/Investments> InvestId: expr = "RailStations/InvestId[second_rel]";
+					container getNearest
+					{ attribute<float32> nearestDist (RailStations): expr = "min(Distance, toStation)"; }
+				}
+				unit<uint32> Meetpunten: expr = "subset(RailStations/Meetpunt = uint16(1))", DialogData = "centroid", DialogType = "map"
+				{
+					attribute<Meetpunten>	id:		expr = "id(Meetpunten)";
+					attribute<point_rd> centroid: 	expr = "RailStations/centroid[Nr_OrgEntity]";
+					attribute<string> 	Name:		expr = "RailStations/Station[Nr_OrgEntity]";
+				}
+			}
+			unit<uint32> StationConnectLinks: expr = "subset(RailStations/ZoneConnect/shortestConn)", dialogdata = "line", dialogtype = "map"
+			{
+				attribute<StationConnectLinks> id:		expr = "id(StationConnectLinks)";		
+				attribute<point_rd>		line (StationConnectLinks, arc):
+													expr = "points2sequence(createLines/centroid, createLines/index, createLines/ordinal)";
+				attribute<float32>		length:			expr = "RailStations/ZoneConnect/Distance[nr_OrgEntity]";
+				attribute<Zones>		fromZone:  		expr = "RailStations/ZoneConnect/fromZone[nr_OrgEntity]";
+				attribute<RailStations> toStation: 		expr = "RailStations/ZoneConnect/toStation[nr_OrgEntity]";
+				attribute<bool>			InvestConnect:  expr = "!IsNull(rlookup(StationPoint, RealInvestmentConstructor/InvestmentLinks/from_point)) || !IsNull(rlookup(StationPoint, RealInvestmentConstructor/InvestmentLinks/to_point))";
+				attribute<bool>			IsRail:			expr = "const(false, StationConnectLinks, bool)";
+				attribute<uint32>		OperatorId:		expr = "const(-1, StationConnectLinks, uint32)";
+				attribute<point_rd>		ZonePoint: 		expr = "RailStations/ZoneConnect/ZonePoint[nr_OrgEntity]";						
+				attribute<point_rd> 	StationPoint:	expr = "RailStations/ZoneConnect/StationPoint[nr_OrgEntity]";
+				attribute<s>			Seconds:		expr = "value(length / (WalkKmh / float32(3.6)),s) + WaitingSeconds";
+				attribute<uint32>		ordinal_0:		expr = "const(0, StationConnectLinks, uint32)";
+				attribute<uint32>		ordinal_1:		expr = "const(1, StationConnectLinks, uint32)";
+				attribute<float32>		ConnectorCost:	expr = "const(0, StationConnectLinks, float32)";
+				
+				
+				attribute<Railroads/Railroad_data/Investments> InvestId: expr = "RailStations/ZoneConnect/InvestId[Nr_OrgEntity]";
+				
+				unit<uint32> createLines: expr = "union_unit(StationConnectLinks, StationConnectLinks)"
+				{
+					attribute<point_rd> 			centroid: 	expr = "union_data(createLines, StationConnectLinks/ZonePoint, StationConnectLinks/StationPoint)";
+					attribute<StationConnectLinks> 	index: 		expr = "union_data(createLines, StationConnectLinks/id, StationConnectLinks/id)";
+					attribute<uint32>				ordinal:	expr = "union_data(createLines, StationConnectLinks/ordinal_0, StationConnectLinks/ordinal_1)";
+				}	
+			}
+		}
+		container RealInvestmentConstructor
+		{	
+			parameter<Operators/Real_Operators> opid:= first(InvestmentLinks/opid);
+			unit<uint32> InvestmentLinks: expr = "subset(Railroads/Railroad_data/InvestId = RunSettings/CurrentInvestment)", DialogData = "line", DialogType = "map"
+			{
+				attribute<point_rd> 			line (arc): expr = "Railroads/Railroad_data/line[Nr_OrgEntity]";
+				attribute<float32>				costs:		expr = "Railroads/Railroad_data/ConnectorCost[Nr_OrgEntity]";
+				attribute<float32>				length:		expr = "arc_length(line, float32)";
+				attribute<uint32>				LinkType:	expr = "const(0, ., uint32)";
+				attribute<point_rd>				from_point: expr = "first_point(line)";
+				attribute<point_rd>				to_point: 	expr = "last_point(line)";
+				attribute<Operators/Real_Operators> opid:= 	Railroads/Railroad_data/OperatorId[Nr_OrgEntity];
+			}
+			unit<uint32> ConnectorLinks: expr = "subset(Stations/StationConnectLinks/InvestConnect)"
+			{
+				attribute<point_rd> line (arc): 	expr = "Stations/StationConnectLinks/line[Nr_OrgEntity]";
+				attribute<uint32>	LinkType:		expr = "const(2, ., uint32)";
+				attribute<Zones>	ConnectedZone:	expr = "point_in_polygon(last_point(line), Zones/vlak)";
+			}
+			unit<uint32> connectedZones: 		expr = "subset(!IsNull(rlookup(id(zones), ConnectorLinks/ConnectedZone)))"
+			{
+				attribute<string> 	Name: expr = "Zones/Name[Nr_OrgEntity]";
+				attribute<point_rd> point: expr = "Zones/Centroid[Nr_OrgEntity]";
+				
+				parameter<zonesmatrix> 	farthest: 	expr = "rlookup(max(zonesmatrix/dist), zonesmatrix/dist)";
+				parameter<string> 	 	linkname: 	expr = "zonesmatrix/linkname[farthest]";
+				parameter<Zones> 		fromzone: 	expr = "min_elem(Nr_OrgEntity[zonesmatrix/first_rel[farthest]], Nr_OrgEntity[zonesmatrix/second_rel[farthest]])";
+				parameter<Zones> 		tozone: 	expr = "max_elem(Nr_OrgEntity[zonesmatrix/first_rel[farthest]], Nr_OrgEntity[zonesmatrix/second_rel[farthest]])";
+								
+				unit<uint32> zonesmatrix: expr = "combine(connectedZones, connectedZones)"
+				{
+					attribute<float32> dist: expr = "first_rel > second_rel ? float32(sqrdist(point[first_rel], point[second_rel])) : float32(0)";
+					attribute<string>  linkname: expr = "Name[first_rel] + ' to ' + Name[second_rel]"; 
+				}
+				
+			}
+			unit<uint32> ConnectedInvestment: 	expr = "union_unit(InvestmentLinks, ConnectorLinks)", DialogData = "line", DialogType = "map"
+			{
+				attribute<point_rd>	line (arc): expr = "union_data(., InvestmentLinks/line, ConnectorLinks/line)";
+				attribute<uint32>	LinkType:	expr = "union_data(., InvestmentLinks/LinkType, ConnectorLinks/LinkType)";
+				attribute<float32>	Costs:		expr = "union_data(., InvestmentLinks/Costs, const(0,ConnectorLinks,float32))";
+				attribute<float32>	Length:		expr = "arc_length(line, float32)";
+				attribute<string>	Code:		expr = "const('c_' + string(RunSettings/CurrentInvestment),.,string)";
+				attribute<Zones>	FromZone:	expr = "point_in_polygon(first_point(line), Zones/Vlak)";
+				attribute<Zones>	ToZone:		expr = "point_in_polygon(last_point(line), Zones/Vlak)";
+			}
+		}
+		
+		
+	}
+	Container Roads
+	{
+		unit<uint32> FullZones:	  expr = "union_unit(Zones, ExteriorZones)"
+		{ attribute<point_rd>	centroid: expr = "union_data(FullZones, Zones/centroid, ExteriorZones/centroid)"; attribute<FullZones> id: expr = "id(FullZones)";}
+		unit<uint32> Zones_cartesian: expr = "combine(FullZones, FullZones)"
+		{ attribute<upoint>	pointid:   	expr = "point(first_rel, second_rel, upoint)";	}
+		unit<uint32> Zones_no_internal: expr = "subset(Zones_cartesian/first_rel <> Zones_cartesian/second_rel)"
+		{ 	attribute<upoint>	pointid:	expr = "Zones_cartesian/pointid[Nr_OrgEntity]"; 
+			attribute<upoint>	Values: 	expr = "pointid";	
+			attribute<point_rd> centroid1:  expr = "FullZones/centroid[pointCol(Values)]";
+			attribute<point_rd> centroid2:  expr = "FullZones/centroid[pointRow(Values)]";
+			attribute<int32>	distance:	expr = "rounddown(dist(centroid1, centroid2))";
+			attribute<float32>  unidist:	expr = "float32(distance) + FromZoneDec";
+			attribute<FromZones>FromZone: 	expr = "rlookup(pointCol(Values), FromZones/Values)";
+			attribute<float32>	FromZoneDec:expr = "float32(FromZone) / (float32(nrOfRows(FromZones))+ float32(1))";
+			
+			unit<uint32> FromZones: expr = "unique(pointCol(Values))"
+			{
+				attribute<uint32>	Values;
+				attribute<float32>	dist0: expr = "nth_element(unidist, const(0, FromZones, uint32), FromZone)";		
+				attribute<float32>	dist1: expr = "nth_element(unidist, const(1, FromZones, uint32), FromZone)";
+				attribute<float32>	dist2: expr = "nth_element(unidist, const(2, FromZones, uint32), FromZone)";
+				attribute<float32>	dist3: expr = "nth_element(unidist, const(3, FromZones, uint32), FromZone)";
+				attribute<float32>	dist4: expr = "nth_element(unidist, const(4, FromZones, uint32), FromZone)";
+				attribute<float32>	dist5: expr = "nth_element(unidist, const(5, FromZones, uint32), FromZone)";
+				attribute<float32>	dist6: expr = "nth_element(unidist, const(6, FromZones, uint32), FromZone)";
+				attribute<float32>	dist7: expr = "nth_element(unidist, const(7, FromZones, uint32), FromZone)";
+				attribute<float32>	dist8: expr = "nth_element(unidist, const(8, FromZones, uint32), FromZone)";
+				attribute<float32>	dist9: expr = "nth_element(unidist, const(9, FromZones, uint32), FromZone)";
+			}
+			
+			attribute<bool>		MakeLine: expr = "(unidist = FromZones/dist0[FromZone] || unidist = FromZones/dist1[FromZone] ||"
+				"unidist = FromZones/dist2[FromZone] || unidist = FromZones/dist3[FromZone] || " // && (unidist < float32(45000))";
+				"unidist = FromZones/dist3[FromZone] || unidist = FromZones/dist4[FromZone] || "
+				"unidist = FromZones/dist5[FromZone]) && unidist < float32(2) * FromZones/dist0[FromZone]";
+		}
+		unit<uint32> GetUniques:	expr = "subset(Zones_no_internal/MakeLine)"
+		{
+			attribute<upoint>	pointid:	expr = "Zones_no_internal/pointid[Nr_OrgEntity]"; 	
+			attribute<upoint>   unipoint:	expr = "point(min_elem(pointcol(pointid), pointrow(pointid)), max_elem(pointcol(pointid), pointrow(pointid)), upoint)";
+		}	
+		unit<uint32> Road_data: expr = "unique(GetUniques/unipoint)", DialogData = "line", DialogType = "map"
+		{
+			attribute<upoint> 	Values;
+			attribute<Road_data>id:		  		expr = "id(Road_data)"; 
+			attribute<point_rd> line (arc): 	expr = "points2sequence(MakeLines/point, MakeLines/Seq, MakeLines/Ord)";
+			attribute<float32>	length:			expr = "arc_length(line, float32)";
+			attribute<uint16>	Open_Year:		expr = "const(0, Road_data, uint16)";
+			attribute<uint16>	Close_Year:		expr = "const(9999, Road_data, uint16)";
+			attribute<bool>		IsRail:			expr = "const(false, Road_data, bool)";
+			attribute<uint32>  	InvestId:		expr = "const(0 / 0,.,uint32)";
+			attribute<s>		Seconds:		expr = "value(length / (WalkKmh / float32(3.6)),s)";
+			attribute<float32>	ConnectorCost:	expr = "const(0, Road_data, float32)";
+			attribute<uint32>	OperatorId:		expr = "const(-2, Road_data, uint32)";
+			attribute<Zones>	fromZone:		expr = "point_in_polygon(first_point(line), Zones/vlak)";
+			attribute<Zones>	toZone:			expr = "point_in_polygon(last_point(line), Zones/vlak)";
+			
+			unit<uint32> MakeLines: expr = "union_unit(Road_data, Road_data)"
+			{
+				attribute<point_rd> point: 	expr = "union_data(MakeLines, FullZones/centroid[pointcol(Values)], FullZones/centroid[pointrow(Values)])";
+				attribute<road_data>Seq:	expr = "union_data(MakeLines, id(Road_data), id(Road_data))";
+				attribute<uint32>	Ord: 	expr = "union_data(MakeLines, const(0, Road_data, uint32), const(1, Road_data, uint32))";
+			}
+		}
+	}	
+			
+	unit<uint32> ObservedPopulation:
+		StorageType 	= "gdal.vect",
+		StorageName     = "%dataDir%/zones/Nl_1930_dissolve_acc_v2.shp",
+		DialogData      = "vlak",
+		DialogType      = "Map",
+		SyncMode        = "none",
+		StorageReadOnly = "True"
+	{
+		attribute<point_rd> 	Geometry (poly);
+		attribute<point_rd> 	vlak (poly):= Geometry;
+		attribute<.> 			id: 			expr = "id(.)", DisableStorage = "True";
+		attribute<string> 		zid:			expr = "'z_'+string(id)";
+		attribute<point_rd>		centroid:		expr = "centroid_or_mid(vlak)";
+		attribute<uint32>		nl_1930;
+		attribute<string>		Mun;
+		attribute<m2>			Area;
+		attribute<float32>		Sqkm:			expr = "area(ObservedPopulation/vlak, m2) / (1000f * 1000f)";
+		attribute<uint32>		Pop1829: expr = "Pop1840";
+		attribute<uint32>		Pop1839: expr = "Pop1840";
+		attribute<uint32>		Pop1840;
+		attribute<uint32>		Pop1849;
+		attribute<uint32>		Pop1859;
+		attribute<uint32>		Pop1869;
+		attribute<uint32>		Pop1879;
+		attribute<uint32>		Pop1889;
+		attribute<uint32>		Pop1899;
+		attribute<uint32>		Pop1909;
+		attribute<uint32>		Pop1919: expr = "Pop1920";
+		attribute<uint32>		Pop1920;
+		attribute<uint32>		Pop1929: expr = "Pop1930";
+		attribute<uint32>		Pop1930;
+		attribute<uint32>		Random: 		expr = "rnd_uniform(params/RandomSeed, ., range(uint32,0,1000))";
+		attribute<uint32>		Mijnbouw;
+		attribute<uint32>		Haven;
+		attribute<uint32>		ProvHoofd;
+		attribute<uint32>		Amdam;
+		attribute<uint32>		DenHaag;
+		attribute<uint32>		BorderZone;
+		attribute<string> 		Name: 			expr = "Mun";
+		attribute<string>		Label:			expr = "Name", DialogType = "LabelText";
+		attribute<s>			InternalTime:	expr = "value( InternalDist / LinkTypes/speeds[LinkTypes/V/walking], s)", DisableStorage = "True";
+		attribute<m>			InternalDist:	expr = "value((sqrt(Area / float32(pi()) )) / float32(2), m)";
+		attribute<string>		ZoneID: 		expr = "'z' + string(nl_1930)", DisableStorage = "True";
+		attribute<string>		ZoneName:		expr = "Mun";
+		attribute<bool> 		sampleZones:	expr = "iif(id < 10, True, False)";
+		attribute<Provinces>	ProvinceID:		expr = "point_in_polygon(centroid, Provinces/Polygons)";
+		//attribute<bool>			OnNet:			expr = "!IsNull(rlookup(id, Railroads/YearNet/fromZone)) || !IsNull(rlookup(id, Railroads/YearNet/toZone))";
+		attribute<uint16>	isHaven: 		expr = "MakeDefined(uint16(Haven), uint16(0))";
+		attribute<uint16>	isProvHoofd: 	expr = "MakeDefined(uint16(ProvHoofd), uint16(0)) + MakeDefined(uint16(AmDam), uint16(0))";
+		attribute<uint16>	isBorderZone: 	expr = "MakeDefined(uint16(BorderZone), uint16(0))";
+		attribute<uint16> 	isMine:			expr = "MakeDefined(uint16(Mijnbouw), uint16(0))";
+		attribute<float32>	psoftsoils:		expr = "sum(CostsGrid/ClayOrPeat, CostsGrid/op_rel) / float32(pcount(CostsGrid/op_rel))";
+		attribute<float32>	phardsoils:		expr = "sum(CostsGrid/SandGravelLoam, CostsGrid/op_rel) / float32(pcount(CostsGrid/op_rel))";
+		
+		unit<uint32> years: NrOfrows = 11 {attribute<string> fieldname: expr = "'pop' + string(1829 + (id(.)*10))";}
+		
+		container mean_pop: expr = "for_each_nedv(years/fieldname, 'float32(mean(ObservedPopulation/'+ years/fieldname +'))',void, float32)";
+		container sum_pop: 	expr = "for_each_nedv(years/fieldname, 'float32(sum(ObservedPopulation/'+ years/fieldname +'))',void, float32)";
+		
+		container pop_theil_indices: expr = "for_each_nedv(years/fieldname, 'mean((float32(Zones/'+ years/fieldname +') / mean_pop/'+ years/fieldname +') * float32(log(float32(Zones/'+ years/fieldname +') / mean_pop/'+ years/fieldname +')))', void, float32)";
+		
+	}
+	unit<uint32> soiltypes:		StorageName = "%dataDir%/costgrids/soil_basis_polygon.shp", storagetype = "gdal.vect", StorageReadOnly = "True", DialogData = "poly", DialogType = "Map"
+	{
+		attribute<point_rd> Geometry (poly);
+		attribute<Soils>	GridCode;
+	}
+	unit<uint32> nowater: StorageName = "%dataDir%/costgrids/nowater.shp", storagetype = "gdal.vect", StorageReadOnly = "True", DialogData = "poly", DialogType = "Map" {attribute<point_rd> Geometry (poly);}
+	
+	unit<wpoint> CostsGrid: StorageName = "%dataDir%/costgrids/soil_basis_michielvaneupen.tif", StorageReadOnly = "True", StorageType = "gdal.grid", DialogData = "point_rd" {
+		attribute<uint8> 				GridData;
+		attribute<soiltypes>			in_Soil_rel:= poly2grid(soiltypes/Geometry, .);
+		attribute<nowater>				nowater_rel:= poly2grid(nowater/Geometry, .);
+		attribute<ObservedPopulation>	muni_rel:=	  poly2grid(ObservedPopulation/Geometry, .);
+		
+		attribute<float32>				ClayOrPeat:					expr = "float32(GridData = 1b || GridData = 2b)";
+		attribute<float32>				SandGravelLoam:				expr = "float32(GridData = 3b || GridData = 5b || GridData = 6b)";
+		
+		attribute<ObservedPopulation> 	op_rel: 					expr = "poly2grid(ObservedPopulation/vlak, .)";
+		attribute<soils> soiltype_raster:= water ? 0[soils] : soiltypes/GridCode[in_Soil_rel];
+		attribute<bool>  water:= 		IsNull(nowater_rel) && IsNull(muni_rel);
+			
+		//attribute<float32> 		soilcosts			(netconnection_raster): expr = "soils/costpm[soiltype_raster] * float32(100)";
+			
+				
+		parameter<point_rd> LeftTop: 		Expr = "lowerbound(.)[point_rd]"; // Left-Bottom coord
+		parameter<point_rd> RightBottom:	Expr = "upperbound(.)[point_rd]"; // right-top coord
+		parameter<point_rd> Extent: 		Expr = "point((pointcol(RightBottom - LeftTop)), (pointrow(LeftTop - RightBottom)), point_rd)";
+		parameter<float32>  size:			Expr = "5500f";
+		parameter<ipoint>	proto_num:		Expr = "rounddown(Extent / point(size, size, point_rd))+point(1i,1i,ipoint)";
+		
+		unit<uint32> proto_polys:				expr = "range(uint32, 0, uint32(pointcol(proto_num)*pointrow(proto_num)))", DialogData = "poly", DialogType = "map", descr = "needed to generate simulated zones" {
+			attribute<uint32>	row: 			expr = "id(.) / uint32(pointcol(proto_num))";
+			attribute<uint32> 	col:			expr = "mod(id(.), uint32(pointcol(proto_num)))";
+			attribute<point_rd> topleft:		expr = "LeftTop + point(float32(col) * size, float32(row) * -size, point_rd)";
+			attribute<point_rd> poly (polygon): expr = "points2sequence(polygen/point, polygen/proto_polys_id)";
+			attribute<.> 		gridrel (CostsGrid):		expr = "poly2grid(poly, CostsGrid)";
+			attribute<float32>	pcLand:			expr = "sum(float32(IsDefined(op_rel)), gridrel) / float32(pcount(gridrel))";
+						
+			unit<uint32> polygen: expr = "range(uint32, 0, #proto_polys * 5)" {
+				attribute<uint32> 	proto_polys_id: 	expr = "union_data(., id(proto_polys), id(proto_polys), id(proto_polys), id(proto_polys), id(proto_polys))";
+				attribute<point_rd> point:				expr = "union_data(., topleft, topleft + point(size, 0f, point_rd), topleft + point(size, -size, point_rd), topleft + point(0f, -size, point_rd), topleft)";
+				
+			}
+		}
+	}
+	unit<uint32> SimulatedZones: expr = "subset(CostsGrid/proto_polys/pcLand > 0.75f)", DialogData = "vlak", DialogType = "map" {
+		attribute<.>		id:				expr = "id(.)";
+		attribute<point_rd> vlak (poly): 	expr = "CostsGrid/proto_polys/poly[Nr_OrgEntity]";
+		attribute<point_rd> centroid: 		expr = "centroid_or_mid(vlak)";
+		attribute<float32> 	Pop1829:		expr = "const(sum(float32(ObservedPopulation/Pop1839)) / float32(#(.)),.,float32)";
+		attribute<float32> 	Pop1839:		expr = "const(sum(float32(ObservedPopulation/Pop1839)) / float32(#(.)),.,float32)";
+		attribute<float32> 	Pop1859:		expr = "const(sum(float32(ObservedPopulation/Pop1859)) / float32(#(.)),.,float32)";
+		attribute<float32> 	Area:			expr = "const(CostsGrid/size^2f,.,float32)";
+		attribute<float32>	Sqkm:			expr = "Area / (1000f * 1000f)";
+		attribute<uint32>	Random: 		expr = "rnd_uniform(params/RandomSeed, ., range(uint32,0,1000))";
+		attribute<string> 	Name: 			expr = "ZoneID";
+		attribute<string>	Label:			expr = "Name", DialogType = "LabelText";
+		attribute<m>		InternalDist:	expr = "value((sqrt(Area / float32(pi()) )) / float32(2), m)";
+		attribute<s>		InternalTime:	expr = "value( InternalDist / WalkSpeed, s)", DisableStorage = "True";
+		attribute<string>	ZoneID: 		expr = "'z' + string(id(.))", DisableStorage = "True";
+		attribute<string>	ZoneName:		expr = "ZoneID";
+		attribute<string> 	Mun:			expr = "ZoneName";
+		attribute<bool> 	sampleZones:	expr = "iif(id < 10, True, False)";
+		attribute<uint16>	isHaven: 		expr = "const(0i,.,uint16)";
+		attribute<uint16>	isProvHoofd: 	expr = "const(0i,.,uint16)";
+		attribute<uint16>	isBorderZone: 	expr = "const(0i,.,uint16)";
+		attribute<uint16> 	isMine:			expr = "const(0i,.,uint16)";
+		attribute<float32>	psoftsoils:		expr = "sum(CostsGrid/ClayOrPeat, CostsGrid/proto_polys/gridrel)[Nr_OrgEntity] / float32(pcount(CostsGrid/proto_polys/gridrel))[Nr_OrgEntity]";
+		attribute<float32>	protohardsoils:	expr = "sum(CostsGrid/SandGravelLoam, CostsGrid/proto_polys/gridrel)[Nr_OrgEntity] / float32(pcount(CostsGrid/proto_polys/gridrel))[Nr_OrgEntity]";
+		attribute<float32>	phardsoils:		expr = "const(mean(protohardsoils),.,float32)";
+	}
+	unit<uint32> SimulatedZones_populated: expr = "SimulatedZones", DialogData = "vlak", DialogType = "map" {
+		attribute<ObservedPopulation>	op_grid (CostsGrid):= poly2grid(ObservedPopulation/vlak, CostsGrid);
+		attribute<.>					sz_grid (CostsGrid):= poly2grid(vlak, CostsGrid);
+		attribute<float32>	Obs_Pop1829_grid 	(CostsGrid):= (float32(ObservedPopulation/Pop1829) / float32(pcount(op_grid)))[op_grid];
+		attribute<float32>	Obs_Pop1839_grid 	(CostsGrid):= (float32(ObservedPopulation/Pop1839) / float32(pcount(op_grid)))[op_grid];
+		attribute<float32>	Obs_Pop1859_grid 	(CostsGrid):= (float32(ObservedPopulation/Pop1859) / float32(pcount(op_grid)))[op_grid];
+		
+		attribute<float32> 	Pop1829:		expr = "scalesum(sum(Obs_Pop1829_grid, sz_grid), float32(sum(ObservedPopulation/Pop1829)))";
+		attribute<float32> 	Pop1839:		expr = "scalesum(sum(Obs_Pop1829_grid, sz_grid), float32(sum(ObservedPopulation/Pop1839)))";
+		attribute<float32> 	Pop1859:		expr = "scalesum(sum(Obs_Pop1829_grid, sz_grid), float32(sum(ObservedPopulation/Pop1859)))";
+	}
+	Unit<uint32> ExteriorZones: 
+		StorageName     = "%dataDir%/exterior/exterior_zones.dbf",
+		DialogData      = "centroid",
+		DialogType      = "Map",
+		SyncMode        = "none",
+		StorageReadOnly = "True"
+	{
+		attribute<point_rd> centroid: label           = "Gemeentes Nederland",
+			StorageName     = "%dataDir%/exterior/exterior_zones.shp",
+			StorageReadOnly = "True";
+		attribute<uint16>	Dld;
+		attribute<uint16>	B;
+	}
+	
+	Unit<uint32> Provinces:
+		DialogData  = "Polygons",
+		DialogType  = "Map",
+		StorageType = "dbf",
+		StorageName = "%dataDir%/achtergrond/prv0_2004.dbf",
+		Descr       = "Deze entiteit bevat de shapes van provincies. Dit zijn er meer dan 12, omdat waddeneilanden bijvoorbeeld aparte shapes zijn.."
+	{
+		attribute<Provinces> id: expr = "id(Provinces)";
+		attribute<point_rd> Polygons(poly):
+			Label       = "Provincies",
+			StorageType = "shp",
+			StorageName = "%dataDir%/achtergrond/prv0_2004.shp";
+	}
+	
+	#include<Economy.dms>
+	
+}
+
+	

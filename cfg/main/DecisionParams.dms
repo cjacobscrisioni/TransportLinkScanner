@@ -1,0 +1,90 @@
+Container DecisionParams
+{
+	unit<uint32> SuitabilityDefinitions: NrOfRows = 3 // case: B3
+	{
+		attribute<String> Label: 			['Private trunk line', 'Private local line', 'State line'];
+		attribute<String> Short:			['priv_trunk', 'priv_loc', 'state'];
+		attribute<string> calib: expr = "const('float32(first_alt) * float32(10) * float32(InOperator = SourceData/Railroads/Railroads/Railroad_data/Investments/Operator[RunSettings/CurrentInvestment] + 1)',.,string)";
+		attribute<string> hist_no_Alonso: 	expr = "const('const(1,.,float32)',.,string)";
+		attribute<string> hist_w_Alonso: 	expr = "hist_no_Alonso";
+		attribute<string> calib_no_Alonso: 	expr = "calib";
+		attribute<string> calib_w_Alonso: 	expr = "calib";
+		attribute<string> calib_no_Alonso_rnd: 	expr = "calib";
+		attribute<string> calib_w_Alonso_rnd: 	expr = "calib";
+		attribute<String> A3:  [
+			'(float32(0.64) * opbcr) + (float32(  6.59) * at_improve) + (float32(1.69) * own_net) + (float32(-0.65) * any_net) + (float32( 3.86) * nwc) + (float32( 3.45) * border) + (float32(-0.35) * harbour)',
+			'(float32(0.11) * opbcr) + (float32(-21.00) * at_improve) + (float32(2.42) * own_net) + (float32( 0.05) * any_net) + (float32( 0.00) * nwc) + (float32(-0.59) * border) + (float32(-0.11) * harbour)',
+			'(float32(0.46) * opbcr) + (float32(-20.89) * at_improve) + (float32(3.83) * own_net) + (float32(-2.68) * any_net) + (float32(-1.67) * nwc) + (float32( 0.06) * border) + (float32( 1.46) * harbour)'];	
+		attribute<String> B3:  [
+			'(float32(1.92) * opbcr) + (float32(  8.60) * at_improve) + (float32(1.84) * own_net) + (float32(-0.70) * any_net) + (float32( 4.00) * nwc) + (float32( 3.69) * border) + (float32(-0.45) * harbour)',
+			'(float32(0.01) * opbcr) + (float32(-21.28) * at_improve) + (float32(2.44) * own_net) + (float32( 0.03) * any_net) + (float32( 0.00) * nwc) + (float32(-0.53) * border) + (float32(-0.07) * harbour)',
+			'(float32(1.25) * opbcr) + (float32(-21.02) * at_improve) + (float32(3.94) * own_net) + (float32(-2.72) * any_net) + (float32(-1.74) * nwc) + (float32( 0.09) * border) + (float32( 1.46) * harbour)'];	
+		attribute<String> A5:  [
+			'(float32(0.42) * opbcr) + (float32(  6.60) * at_improve) + (float32(1.57) * own_net) + (float32(-0.73) * any_net) + (float32( 3.73) * nwc) + (float32( 3.56) * border) + (float32(-0.32) * harbour)',
+			'(float32(0.05) * opbcr) + (float32(-20.90) * at_improve) + (float32(2.24) * own_net) + (float32( 0.10) * any_net) + (float32( 0.00) * nwc) + (float32(-0.53) * border) + (float32(-0.03) * harbour)',
+			'(float32(0.19) * opbcr) + (float32(-22.63) * at_improve) + (float32(3.95) * own_net) + (float32(-2.79) * any_net) + (float32(-1.87) * nwc) + (float32(-0.09) * border) + (float32( 1.45) * harbour)'];		
+		attribute<String> B5:  [
+			'(float32(1.28) * opbcr) + (float32(  8.16) * at_improve) + (float32(1.69) * own_net) + (float32(-0.71) * any_net) + (float32( 3.77) * nwc) + (float32( 3.71) * border) + (float32(-0.43) * harbour)',
+			'(float32(0.38) * opbcr) + (float32(-20.53) * at_improve) + (float32(2.22) * own_net) + (float32( 0.14) * any_net) + (float32( 0.00) * nwc) + (float32(-0.52) * border) + (float32(-0.01) * harbour)',
+			'(float32(0.40) * opbcr) + (float32(-23.20) * at_improve) + (float32(4.07) * own_net) + (float32(-2.77) * any_net) + (float32(-1.90) * nwc) + (float32(-0.10) * border) + (float32( 1.41) * harbour)'];		
+		attribute<string> B5_privates: expr = "B5";
+		attribute<string> B5_privates_cooperate: [
+			'(float32(1.28) * opbcr) + (float32(3) * oth_effects) 	  + (float32(  8.16) * at_improve) + (float32(1.69) * own_net) + (float32(-0.71) * any_net) + (float32( 3.77) * nwc) + (float32( 3.71) * border) + (float32(-0.43) * harbour)',
+			'(float32(0.38) * opbcr) + (float32(-20.53) * at_improve) + (float32(2.22) * own_net) + (float32( 0.14) * any_net) + (float32( 0.00) * nwc) + (float32(-0.52) * border) + (float32(-0.01) * harbour)',
+			'(float32(0.40) * opbcr) + (float32(-23.20) * at_improve) + (float32(4.07) * own_net) + (float32(-2.77) * any_net) + (float32(-1.90) * nwc) + (float32(-0.10) * border) + (float32( 1.41) * harbour)'];
+		attribute<string> B5_privates_nopause: 	expr = "B5";
+		attribute<string> B5b: 					expr = "B5";
+		attribute<string> B5c: 					expr = "B5";
+		attribute<string> B7_5:					expr = "B5";
+		attribute<string> elastic_r1:			
+		[ 	'(float32(0.189655) * opbcr_wr50) + (float32(-0.025176) * socbcr_wr50)',
+			'(float32(1.213543) * opbcr_wr50) + (float32(-0.072032) * socbcr_wr50)',
+			'(float32(-0.067368) * opbcr_wr50) + (float32(0.025028) * socbcr_wr50)'
+			];
+		attribute<string> notelastic_r1:	
+		[ 	'(float32(0.079274) * opbcr_wr50) + (float32(-0.009769) * socbcr_wr50)',
+			'(float32(0.312977) * opbcr_wr50) + (float32(-0.013638) * socbcr_wr50)',
+			'(float32(-0.025943) * opbcr_wr50) + (float32(0.009883) * socbcr_wr50)'
+			];
+	}
+	Container Matrix_link_selection
+	{
+		parameter<string> BCR_model: ['float32(1.064108) * ln_pop + float32(-1.065522) * ln_costs']; 
+		parameter<string> GenericModel: expr = "= RunSettings/Scenarios/MatrixSelection[RunSettings/ScenarioId]";
+		parameter<string> RandomModel: ['rnd_uniform(RunSettings/Scenarios/RandomBase[RunSettings/ScenarioId] + RunSettings/CurrentInvestment, ., range(float32, float32(0), float32(10)))'];
+		parameter<string> EstimatedModel: 
+			['float32(1.39381) * borderconn + float32(0.6135184) * provcap + float32(0.8642402) * mining + float32(1.064108) * ln_pop + float32(-1.065522) * ln_costs + float32(0.0000000142) * dpk + float32(1.922304) * conni + float32(1.982465) * connj + float32(2.006312) * connij'];
+		parameter<string> logit_no_elasticity: 
+			['float32(-10.89) + 
+			(float32(0.0000000102) * (PK1ij - PK0ij)) + (float32(-0.0000001013) * Costs) + (float32(0.00002777) * (c0ij - c1ij)) + 
+			(float32(0.8717) * float32(bci || bcj)) + (float32(1.696) * float32(bci && bcj)) + 
+			(float32(2.602) * float32(ConnectedZones/connectedZones[FromZone] || ConnectedZones/connectedZones[toZone])) + 
+			(float32(1.548) * float32(ConnectedZones/connectedZones[FromZone] && ConnectedZones/connectedZones[toZone])) + 
+			(float32(2.11) * float32(provcapi || provcapj)) + (float32(2.192) * float32(provcapi && provcapj))'];
+		parameter<string> logit_w_elasticity:
+			['float32(-10.97) + 
+			(float32(0.00000002417) * (PK1ij - PK0ij)) + (float32(-0.00000008317) * Costs) + (float32(0.00002858) * (c0ij - c1ij)) + 
+			(float32(0.8239) * float32(bci || bcj)) + (float32(1.722) * float32(bci && bcj)) + 
+			(float32(2.534) * float32(ConnectedZones/connectedZones[FromZone] || ConnectedZones/connectedZones[toZone])) + 
+			(float32(1.522) * float32(ConnectedZones/connectedZones[FromZone] && ConnectedZones/connectedZones[toZone])) + 
+			(float32(2.251) * float32(provcapi || provcapj)) + (float32(2.11) * float32(provcapi && provcapj))'];
+		parameter<string> simplified_mod0: ['-9.5776589f + (-0.0038709f * (Bij / 60f)) + (0.277994f * ((c0ij - c1ij) / (60f * 60f))) + 
+			(3.2134081f * float32(ConnectedZones/connectedZones[FromZone] || ConnectedZones/connectedZones[toZone])) + (1.9227548f * float32(ConnectedZones/connectedZones[FromZone] && ConnectedZones/connectedZones[toZone]))'];
+		parameter<string> simplified_mod1: ['-10.57728f + (-0.08198f * (Costs / (1000f * 1000f))) + (0.11154f * ((c0ij - c1ij) / (60f * 60f))) + 
+			(2.71014f * float32(ConnectedZones/connectedZones[FromZone] || ConnectedZones/connectedZones[toZone])) + (1.60299f * float32(ConnectedZones/connectedZones[FromZone] && ConnectedZones/connectedZones[toZone]))'];
+		parameter<string> simplified_mod2:
+			['-10.77382f + (-0.08107f * (Costs / (1000f * 1000f))) + (0.10163f * ((c0ij - c1ij) / (60f * 60f))) +
+			(0.80011f * float32(bci || bcj)) + (1.72362f * float32(bci && bcj)) + 
+			(float32(2.37547) * float32(ConnectedZones/connectedZones[FromZone] || ConnectedZones/connectedZones[toZone])) + 
+			(float32(1.37443) * float32(ConnectedZones/connectedZones[FromZone] && ConnectedZones/connectedZones[toZone])) + 
+			(float32(2.35613) * float32(provcapi || provcapj)) + (float32(2.78646) * float32(provcapi && provcapj))'];
+	}
+	Container PlausiblePath_Suitability
+	{
+		parameter<string> HighPassengerMileage: 
+			['(float32(0.5) * MakeDefined((Saturation * float32(popZones))[BaseNetwork/NodeSet/ZoneId], float32(0))[BaseNetwork/F1]) + (float32(0.5) * MakeDefined((Saturation * float32(popZones))[BaseNetwork/NodeSet/ZoneId], float32(0))[BaseNetwork/F2])'];
+		parameter<string> NoBenefits:
+			['const(1.0,BaseNetwork, float32)'];
+	}
+
+}

@@ -1,0 +1,114 @@
+container Units
+{
+	// visualisation
+	unit<uint32>  color: Range = "[0, 16777217)";
+	unit<uint32>  rgb;
+	unit<float32> fontsize;
+	unit<int16>   size;
+	unit<int16>   index;
+	unit<string>  fontname;
+	unit<int16>   style;
+	
+	// geography
+	unit<float32> coord_rd: expr  = "m";
+	unit<fpoint>  point_rd: Descr = "Rijksdriehoekstelsel Amersfoort RD new",	Format = "EPSG:28992";
+			
+	// quantities
+	unit<float32> s:       	expr = "baseunit('s', float32)", label = "seconds";
+	unit<float32> m:      	expr = "baseunit('m', float32)", label = "meter";
+	unit<float32> m2:	  	label = "square meters";
+	unit<float32> km2:	 	label = "square kilometers";
+	unit<float32> ratio:  	expr = "m / m";
+	unit<float32> speed:	expr = "m / s";
+	unit<uint32>  nr_inh: 	label = "nr inhabitants";
+	unit<uint32>  nr_jobs:	label = "nr jobs";
+	unit<float32> EUR:    	expr = "baseunit('EUR', float32)", label = "Euro";
+	
+	container top100
+	{
+		unit<uint8> kleurindex: isHidden = "True", nrofrows = 255
+		{
+			attribute<uint32> KleurenPalet_org: Expr = "grid/nl/PaletteData";
+			attribute<uint32> KleurenPalet: 
+				DialogType = "BrushColor", 
+				Expr = "iif(id(kleurindex) = value(0,kleurindex) 
+							|| id(kleurindex) = value(133,kleurindex) 
+							|| id(kleurindex) = value(144,kleurindex) 
+							|| id(kleurindex) = value(164,kleurindex)  
+							|| id(kleurindex) = value(171,kleurindex)
+							, rgb(240,247,246), KleurenPalet_org)";
+		}
+		container grid
+		{	
+			unit<spoint> nl: 
+				StorageName = "%dataDir%/achtergrond/ned100clr_2000_pb.tif",
+				DialogData  = "point_rd"
+			{
+				attribute<kleurindex> GridData
+				{
+					parameter<Float32> ZoomInLimit:  DialogType = "MinPixSize", Expr = "float32(10.0)",   IsHidden = "True", DisableStorage = "True";
+				}
+				attribute<uint32> PaletteData(kleurindex):isHidden = "True";
+			}
+		}
+	}
+	container Provincie
+		{
+			unit<uint32> VAT: expr = "unique(Shapes/PrvNr)"
+			{
+				attribute<int16> 	Values;
+				attribute<string>	PrvNm:	expr = "first(Shapes/PrvNm, Shapes/VATid)";
+				attribute<float32>	Area: 	expr = "sum(float32(Shapes/Shape_Area), Shapes/VATid) / float32(1000 * 1000)";
+			}
+			
+			unit<uint32> Shapes:
+				DialogData  = "Provincie/Shapes/Polygons",
+				DialogType  = "Map",
+				StorageType = "dbf",
+				StorageName = "%dataDir%/achtergrond/prv0_2004.dbf",
+				Descr       = "Deze entiteit bevat de shapes van provincies. Dit zijn er meer dan 12, omdat waddeneilanden bijvoorbeeld aparte shapes zijn.."
+			{
+				attribute<point_rd> Polygons(poly):
+					Label       = "Provincies",
+					StorageType = "shp",
+					StorageName = "%dataDir%/achtergrond/prv0_2004.shp";
+				attribute<int16> 	PrvNr;
+				attribute<string>	PrvNm;
+				attribute<float64>	Shape_Area; 
+				attribute<VAT>		VATid: expr = "rlookup(PrvNr, VAT/Values)";
+			}
+		}
+	
+	unit<uint8> colorindex: nrofrows = 256
+	{
+		attribute<color> KleurenPalet: DialogType = "Palette", expr = "SourceData/Reference/Corine/PaletteData";
+	}	
+	
+	unit<uint32> Soils: nrOfRows = 9
+	{
+		attribute<string> 	Name: 		['Water of Buitenland', 'Veen', 'Zand', 'Lichte zavel?', 'Lichte klei?', 'Zware zavel?', 'Zware klei', 'Leem en Loess', 'Grind'];
+		attribute<uint8>	Type:		[2, 1, 0, 0, 1, 0, 1, 0, 0];
+		attribute<string> 	Label:		expr = "Name";
+		attribute<string> 	net_id:		expr = "id(.) < max(id(.)) ? 's_' + string(id(Soils)) : 's_' + string(sub_or_null(id(Soils), 1))";
+		attribute<string>   exec:		expr = "Soils/Type = uint8(2) ? 'water' 	 : '(length - water) 	  * (' + net_id + ' / length)'";
+		attribute<string>   exec1851:	expr = "Soils/Type = uint8(2) ? 'water_1851' : '(length - water_1851) * (' + net_id + ' / length)'";
+		attribute<string>   exec1930:	expr = "Soils/Type = uint8(2) ? 'water_1930' : '(length - water_1930) * (' + net_id + ' / length)'";
+		attribute<float32>	CostPm:		expr = "SourceData/CostsPerSoilType/Cost[rlookup(Type, id(SourceData/CostsPerSoilType))]";
+		attribute<float32>	CostPmsq:	expr = "Type < uint8(2) ? CostPm : CostPm^float32(2)";
+		attribute<uint8>	VanEupen:   [0, 1, 3, 4, 2, 4, 2, 5, 6];
+	}
+	unit<uint32> LinkTypes: nrofrows = 4, using = "RunSettings/Scenarios" {
+		attribute<string> 	Label: ['Walking','Private_trunk', 'State', 'Local'];
+		attribute<speed>	Speeds:= (union_data(., params/WalkKmh, params/TrainKmh, params/TrainKmh, params/LocalKmh) / 3.6f)[speed];
+		
+		container V:= for_each_nedv(Label, string(id(.)), void, LinkTypes);
+	}
+	unit<uint32> Years: nrOfRows = 10
+	{ 
+		attribute<string> 	Label:= 'Y'+string(Year);
+		attribute<uint32>	Year: 	expr = "1829 + (id(Years) * 10)"; attribute<string> sYear: expr = "'y_' + string(Year)";	
+		attribute<uint32> 	CostYear: expr = "Year + 10 < 1851 ? 1851: 1930";
+		attribute<uint32>   Period: expr = "switch(case(Year < 1859, 0), case(Year < 1889, 1), 2)";	
+	}
+	
+}

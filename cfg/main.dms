@@ -1,0 +1,215 @@
+Container TransportLinkScanner
+{
+	container RunSettings: Using = "Operators;Units;" 
+	{	
+		parameter<string>  settings_file: StorageName = "%projdir%/cfg/scenarioname.txt",  StorageType = "str";
+		parameter<string>  ActiveScenarioName:	expr = "readvalue(settings_file, string, 0)";
+				
+		
+		parameter<bool> 	   NewRun: 				expr = "CurrentInvestment = 0";	// True"; // keeps track of whether this is the first investment or not.
+		parameter<Scenarios>   ScenarioId:			expr = "rlookup(ActiveScenarioName, Scenarios/Name)";
+		//parameter<Scenarios>   ScenarioId:			expr = "rlookup('notelastic_r1_md_0_r0', Scenarios/Name)";
+		parameter<uint32> 	   CurrentInvestment:	expr = "sum(InvestmentTracker/InvestId)", KeepData = "False"; //40", KeepData = "False"; //40", KeepData = "False"; //24", KeepData = "False"; //40", KeepData = "False"; //
+		parameter<uint16>	   OpenYear:			expr = "CheckWithRealInvestments";//uint16(sum(InvestmentTracker/Year))"; //uint16(1850)"; //
+		parameter<uint16> 	   inYear:=				uint16(Years/Year[classify(Openyear, Years/Year[uint16])]);
+		
+		//makedefined(sub_or_null(dist_f_9, 10[uint16])); MakeDefined(dist_f_9 < uint16(10) ? OpenYear - dist_f_9: OpenYear, uint16(1839))";
+		parameter<uint16>	   dist_f_9:			expr = "uint16(10) - (uint16(9) - value(substr(string(OpenYear), 3, 1), uint16))";
+		parameter<string> 	   prevFile:			expr = "CurrentInvestment = 0 ? 'startnet' : 'modellednet_' + string(sub_or_null(CurrentInvestment, 1))";
+		parameter<string>	   curFile:				expr = "'modellednet_' + string(CurrentInvestment)";
+		parameter<float32>	   LengthWindowSize:	expr = "float32(10)";
+		parameter<float32>	   MaxLength:			expr = "Scenarios/maxLengthFromWindow[ScenarioId] ? max(float32(SourceData/Railroads/Railroads/Railroad_data/Concessies/InWindow) * float32(SourceData/Railroads/Railroads/Railroad_data/Concessies/Length)) : float32(10)^float32(10)";
+		
+		unit<uint32> InvestmentTracker: expr = "= ExistingFile('x:/x', '%ProjDir%/runs/'+ Scenarios/Name[ScenarioId] +'/runtrack.dbf') = 'x:/x' ? 'storeNewInvestmentTracker' : 'loadInvestmentTracker'";
+		
+		unit<uint32> storeNewInvestmentTracker: NrOfRows = 1, StorageName = "= '%ProjDir%/runs/'+ Scenarios/Name[ScenarioId] +'/runtrack.dbf'" //, ExplicitSuppliers = "PopulationModels/StoreNewPopulationFile;PopulationModels/StoreNewPopulationFile/year_results;"
+		{
+			attribute<uint32> InvestId: 	expr = "const(Scenarios/FirstModelledInvestment[ScenarioId], ., uint32)"; // keeps track of the investment number
+			attribute<uint32> Year:			expr = "const(Scenarios/Startyear[ScenarioId], ., uint32)"; // keeps track of the year of the last investment
+		}
+		parameter<bool> init_populationmodel: expr = "True", ExplicitSuppliers = "PopulationModels/StoreNewPopulationFile;PopulationModels/StoreNewPopulationFile/year_results;";
+		unit<uint32> loadInvestmentTracker: StorageName = "= '%ProjDir%/runs/'+ Scenarios/Name[ScenarioId] +'/runtrack.dbf'", StorageReadOnly = "True", KeepData = "False"
+		{
+			attribute<uint32> InvestId;
+			attribute<uint32> Year;
+		}
+		unit<uint32> Scenarios: NrOfRows = 111{
+			parameter<uint32> NrAttributes: [10];
+			
+			unit<uint32> Table: expr = "range(uint32, 0, #Scenarios * NrAttributes)" {
+				attribute<string> data: [
+				//Name									Randombase	costfield_eval				MatrixSelection			InvestmentSelection			popfield, 				maxLengthFromWindow rankselection 	high_prob_alter		investment_pause
+				'elastic_no_state',							'0',	'curr_costs',				'logit_w_elasticity',		'elastic_r1',			'ObservedDynamic',		'true',				'0',			'9',				'1',
+				'calib_elastic_speed_inc_local_speed',		'0',	'curr_costs',				'logit_w_elasticity',		'calib',				'ObservedDynamic',		'true',				'0',			'9',				'1',
+				'calib_elastic_speed_inc',		'0',	'curr_costs',				'logit_w_elasticity',		'calib',				'ObservedDynamic',		'true',				'0',			'9',				'1',
+				'calib_elastic',				'0',	'curr_costs',				'logit_w_elasticity',		'calib',				'ObservedDynamic',		'true',				'0',			'9',				'1',
+				//'calib_elastic_cc_se',			'0',	'curr_costs_state_eval',	'logit_w_elasticity',		'calib',				'ObservedDynamic',		'true',				'0',			'9',				'1',
+				'calib_elastic_rnd',			'0',	'curr_costs_state_eval',	'RandomModel',				'calib',				'ObservedDynamic',		'true',				'0',			'9',				'1',
+				'calib_elastic_rnd_shortest',	'0',	'curr_costs_state_eval',	'RandomModel',				'calib',				'ObservedDynamic',		'true',				'0',			'9',				'1',
+				'calib_elastic_ms0',			'0',	'curr_costs_state_eval',	'simplified_mod0',			'calib',				'ObservedDynamic',		'true',				'0',			'9',				'1',
+				'calib_elastic_ms1',			'0',	'curr_costs_state_eval',	'simplified_mod1',			'calib',				'ObservedDynamic',		'true',				'0',			'9',				'1',
+				'calib_elastic_ms2',			'0',	'curr_costs_state_eval',	'simplified_mod2',			'calib',				'ObservedDynamic',		'true',				'0',			'9',				'1',
+				'calib_notelastic_speed_inc_local_speed',	'0',	'curr_costs',				'logit_no_elasticity',		'calib',				'ObservedDynamic',		'true',				'0',			'9',				'1',
+				'calib_notelastic_speed_inc',	'0',	'curr_costs',				'logit_no_elasticity',		'calib',				'ObservedDynamic',		'true',				'0',			'9',				'1',
+				'calib_notelastic',				'0',	'curr_costs',				'logit_no_elasticity',		'calib',				'ObservedDynamic',		'true',				'0',			'9',				'1',
+				'elastic_r1_od_1_r0',			'1',	'curr_costs_state_eval',	'logit_w_elasticity',		'elastic_r1',			'ObservedDynamic',		'true',				'0',			'9',				'1',
+				'elastic_r1_od_1_r0',			'1',	'curr_costs_state_eval',	'logit_w_elasticity',		'elastic_r1',			'ObservedDynamic',		'true',				'0',			'9',				'1',
+				'elastic_r1_od_1_GronLeeuw_r0',	'1',	'curr_costs_state_eval',	'logit_w_elasticity',		'elastic_r1',			'ObservedDynamic',		'true',				'0',			'9',				'1',
+				'elastic_r1_od_2_r0',			'2',	'curr_costs_state_eval',	'logit_w_elasticity',		'elastic_r1',			'ObservedDynamic',		'true',				'0',			'9',				'1',
+				'notelastic_r1_od_1_r0',		'1',	'curr_costs_state_eval',	'logit_no_elasticity',		'notelastic_r1',		'ObservedDynamic',		'true',				'0',			'9',				'1',
+				'notelastic_r1_od_2_r0',		'2',	'curr_costs_state_eval',	'logit_no_elasticity',		'notelastic_r1',		'ObservedDynamic',		'true',				'0',			'9',				'1',
+				'RietveldBruinsma_od',			'0',	'RietveldBruinsma_costs',	'BCR_model',				'',						'ObservedDynamic',		'false',			'0',			'10',				'0',
+				'C_JacobsCrisioniKoopmans_2016','0',	'C_JacobsCrisioniKoopmans_2016',	'BCR_model',		'',						'ObservedDynamic',		'false',			'0',			'10',				'0',
+				'Random_rd',					'0',	'Random',					'BCR_model',				'',						'Random',				'false',			'0',			'0',				'0',
+				'elastic_r1_od_0_r0',			'0',	'curr_costs_state_eval',	'logit_w_elasticity',		'elastic_r1',			'ObservedDynamic',		'true',				'0',			'9',				'1',
+				'elastic_r1_od_0_r1',			'0',	'curr_costs_state_eval',	'logit_w_elasticity',		'elastic_r1',			'ObservedDynamic',		'true',				'1',			'9',				'1',
+				'elastic_r1_od_0_r2',			'0',	'curr_costs_state_eval',	'logit_w_elasticity',		'elastic_r1',			'ObservedDynamic',		'true',				'2',			'9',				'1',
+				'elastic_r1_od_0_r3',			'0',	'curr_costs_state_eval',	'logit_w_elasticity',		'elastic_r1',			'ObservedDynamic',		'true',				'3',			'9',				'1',
+				'elastic_r1_od_0_r4',			'0',	'curr_costs_state_eval',	'logit_w_elasticity',		'elastic_r1',			'ObservedDynamic',		'true',				'4',			'9',				'1',
+				'elastic_r1_od_0_r5',			'0',	'curr_costs_state_eval',	'logit_w_elasticity',		'elastic_r1',			'ObservedDynamic',		'true',				'5',			'9',				'1',
+				'elastic_r1_od_0_Northern_A',	'0',	'curr_costs_state_eval',	'logit_w_elasticity',		'elastic_r1',			'ObservedDynamic',		'true',				'0',			'9',				'1',
+				'elastic_r1_od_0_Northern_B',	'0',	'curr_costs_state_eval',	'logit_w_elasticity',		'elastic_r1',			'ObservedDynamic',		'true',				'0',			'9',				'1',
+				'elastic_r1_od_0_Northern_C',	'0',	'curr_costs_state_eval',	'logit_w_elasticity',		'elastic_r1',			'ObservedDynamic',		'true',				'0',			'9',				'1',
+				'notelastic_r1_od_0_r0',		'0',	'curr_costs_state_eval',	'logit_no_elasticity',		'notelastic_r1',		'ObservedDynamic',		'true',				'0',			'9',				'1',
+				'notelastic_r1_od_0_r1',		'0',	'curr_costs_state_eval',	'logit_no_elasticity',		'notelastic_r1',		'ObservedDynamic',		'true',				'1',			'9',				'1',
+				'notelastic_r1_od_0_r2',		'0',	'curr_costs_state_eval',	'logit_no_elasticity',		'notelastic_r1',		'ObservedDynamic',		'true',				'2',			'9',				'1',
+				'notelastic_r1_od_0_r3',		'0',	'curr_costs_state_eval',	'logit_no_elasticity',		'notelastic_r1',		'ObservedDynamic',		'true',				'3',			'9',				'1',
+				'notelastic_r1_od_0_r4',		'0',	'curr_costs_state_eval',	'logit_no_elasticity',		'notelastic_r1',		'ObservedDynamic',		'true',				'4',			'9',				'1',
+				'notelastic_r1_od_0_r5',		'0',	'curr_costs_state_eval',	'logit_no_elasticity',		'notelastic_r1',		'ObservedDynamic',		'true',				'5',			'9',				'1',
+				'elastic_r1_os_0_r0',			'0',	'curr_costs_state_eval',	'logit_w_elasticity',		'elastic_r1',			'ObservedStatic',		'true',				'0',			'9',				'1',
+				'elastic_r1_os_0_r1',			'0',	'curr_costs_state_eval',	'logit_w_elasticity',		'elastic_r1',			'ObservedStatic',		'true',				'1',			'9',				'1',
+				'elastic_r1_os_0_r2',			'0',	'curr_costs_state_eval',	'logit_w_elasticity',		'elastic_r1',			'ObservedStatic',		'true',				'2',			'9',				'1',
+				'elastic_r1_os_0_r3',			'0',	'curr_costs_state_eval',	'logit_w_elasticity',		'elastic_r1',			'ObservedStatic',		'true',				'3',			'9',				'1',
+				'elastic_r1_os_0_r4',			'0',	'curr_costs_state_eval',	'logit_w_elasticity',		'elastic_r1',			'ObservedStatic',		'true',				'4',			'9',				'1',
+				'elastic_r1_os_0_r5',			'0',	'curr_costs_state_eval',	'logit_w_elasticity',		'elastic_r1',			'ObservedStatic',		'true',				'5',			'9',				'1',
+				'elastic_r1_os_0_Northern_A',	'0',	'curr_costs_state_eval',	'logit_w_elasticity',		'elastic_r1',			'ObservedStatic',		'true',				'0',			'9',				'1',
+				'elastic_r1_os_0_Northern_B',	'0',	'curr_costs_state_eval',	'logit_w_elasticity',		'elastic_r1',			'ObservedStatic',		'true',				'0',			'9',				'1',
+				'elastic_r1_os_0_Northern_C',	'0',	'curr_costs_state_eval',	'logit_w_elasticity',		'elastic_r1',			'ObservedStatic',		'true',				'0',			'9',				'1',
+				'notelastic_r1_os_0_r0',		'0',	'curr_costs_state_eval',	'logit_no_elasticity',		'notelastic_r1',		'ObservedStatic',		'true',				'0',			'9',				'1',
+				'notelastic_r1_os_0_r1',		'0',	'curr_costs_state_eval',	'logit_no_elasticity',		'notelastic_r1',		'ObservedStatic',		'true',				'1',			'9',				'1',
+				'notelastic_r1_os_0_r2',		'0',	'curr_costs_state_eval',	'logit_no_elasticity',		'notelastic_r1',		'ObservedStatic',		'true',				'2',			'9',				'1',
+				'notelastic_r1_os_0_r3',		'0',	'curr_costs_state_eval',	'logit_no_elasticity',		'notelastic_r1',		'ObservedStatic',		'true',				'3',			'9',				'1',
+				'notelastic_r1_os_0_r4',		'0',	'curr_costs_state_eval',	'logit_no_elasticity',		'notelastic_r1',		'ObservedStatic',		'true',				'4',			'9',				'1',
+				'notelastic_r1_os_0_r5',		'0',	'curr_costs_state_eval',	'logit_no_elasticity',		'notelastic_r1',		'ObservedStatic',		'true',				'5',			'9',				'1',
+				'elastic_r1_md_0_r0',			'0',	'curr_costs_state_eval',	'logit_w_elasticity',		'elastic_r1',			'ModelledDynamic',		'true',				'0',			'9',				'1',
+				'elastic_r1_md_0_r1',			'0',	'curr_costs_state_eval',	'logit_w_elasticity',		'elastic_r1',			'ModelledDynamic',		'true',				'1',			'9',				'1',
+				'elastic_r1_md_0_r2',			'0',	'curr_costs_state_eval',	'logit_w_elasticity',		'elastic_r1',			'ModelledDynamic',		'true',				'2',			'9',				'1',
+				'elastic_r1_md_0_r3',			'0',	'curr_costs_state_eval',	'logit_w_elasticity',		'elastic_r1',			'ModelledDynamic',		'true',				'3',			'9',				'1',
+				'elastic_r1_md_0_r4',			'0',	'curr_costs_state_eval',	'logit_w_elasticity',		'elastic_r1',			'ModelledDynamic',		'true',				'4',			'9',				'1',
+				'elastic_r1_md_0_r5',			'0',	'curr_costs_state_eval',	'logit_w_elasticity',		'elastic_r1',			'ModelledDynamic',		'true',				'5',			'9',				'1',
+				'elastic_r1_md_0_Brabant_A',	'0',	'curr_costs_state_eval',	'logit_w_elasticity',		'elastic_r1',			'ModelledDynamic',		'true',				'0',			'9',				'1',
+				'elastic_r1_md_0_Northern_A',	'0',	'curr_costs_state_eval',	'logit_w_elasticity',		'elastic_r1',			'ModelledDynamic',		'true',				'0',			'9',				'1',
+				'elastic_r1_md_0_Northern_B',	'0',	'curr_costs_state_eval',	'logit_w_elasticity',		'elastic_r1',			'ModelledDynamic',		'true',				'0',			'9',				'1',
+				'elastic_r1_md_0_Northern_C',	'0',	'curr_costs_state_eval',	'logit_w_elasticity',		'elastic_r1',			'ModelledDynamic',		'true',				'0',			'9',				'1',
+				'notelastic_r1_md_0_Brabant_A',	'0',	'curr_costs_state_eval',	'logit_w_elasticity',		'elastic_r1',			'ModelledDynamic',		'true',				'0',			'9',				'1',
+				'notelastic_r1_md_0_Northern_A','0',	'curr_costs_state_eval',	'logit_no_elasticity',		'notelastic_r1',		'ModelledDynamic',		'true',				'0',			'9',				'1',
+				'notelastic_r1_md_0_Northern_B','0',	'curr_costs_state_eval',	'logit_no_elasticity',		'notelastic_r1',		'ModelledDynamic',		'true',				'0',			'9',				'1',
+				'notelastic_r1_md_0_Northern_C','0',	'curr_costs_state_eval',	'logit_no_elasticity',		'notelastic_r1',		'ModelledDynamic',		'true',				'0',			'9',				'1',
+				'notelastic_r1_md_0_r0',		'0',	'curr_costs_state_eval',	'logit_no_elasticity',		'notelastic_r1',		'ModelledDynamic',		'true',				'0',			'9',				'1',
+				'notelastic_r1_md_0_r1',		'0',	'curr_costs_state_eval',	'logit_no_elasticity',		'notelastic_r1',		'ModelledDynamic',		'true',				'1',			'9',				'1',
+				'notelastic_r1_md_0_r2',		'0',	'curr_costs_state_eval',	'logit_no_elasticity',		'notelastic_r1',		'ModelledDynamic',		'true',				'2',			'9',				'1',
+				'notelastic_r1_md_0_r3',		'0',	'curr_costs_state_eval',	'logit_no_elasticity',		'notelastic_r1',		'ModelledDynamic',		'true',				'3',			'9',				'1',
+				'notelastic_r1_md_0_r4',		'0',	'curr_costs_state_eval',	'logit_no_elasticity',		'notelastic_r1',		'ModelledDynamic',		'true',				'4',			'9',				'1',
+				'notelastic_r1_md_0_r5',		'0',	'curr_costs_state_eval',	'logit_no_elasticity',		'notelastic_r1',		'ModelledDynamic',		'true',				'5',			'9',				'1',
+				'elastic_r1_sd_0_r0',			'0',	'equal_costs',				'logit_w_elasticity',		'elastic_r1',			'SimulatedFlatDynamic',		'true',				'0',			'9',				'1',
+				'elastic_r1_sd_0_r1',			'0',	'equal_costs',				'logit_w_elasticity',		'elastic_r1',			'SimulatedFlatDynamic',		'true',				'1',			'9',				'1',
+				'elastic_r1_sd_0_r2',			'0',	'equal_costs',				'logit_w_elasticity',		'elastic_r1',			'SimulatedFlatDynamic',		'true',				'2',			'9',				'1',
+				'elastic_r1_sd_0_r3',			'0',	'equal_costs',				'logit_w_elasticity',		'elastic_r1',			'SimulatedFlatDynamic',		'true',				'3',			'9',				'1',
+				'elastic_r1_sd_0_r4',			'0',	'equal_costs',				'logit_w_elasticity',		'elastic_r1',			'SimulatedFlatDynamic',		'true',				'4',			'9',				'1',
+				'elastic_r1_sd_0_r5',			'0',	'equal_costs',				'logit_w_elasticity',		'elastic_r1',			'SimulatedFlatDynamic',		'true',				'5',			'9',				'1',
+				'notelastic_r1_sd_0_r0',		'0',	'equal_costs',				'logit_no_elasticity',		'notelastic_r1',		'SimulatedFlatDynamic',		'true',				'0',			'9',				'1',
+				'notelastic_r1_sd_0_r1',		'0',	'equal_costs',				'logit_no_elasticity',		'notelastic_r1',		'SimulatedFlatDynamic',		'true',				'1',			'9',				'1',
+				'notelastic_r1_sd_0_r2',		'0',	'equal_costs',				'logit_no_elasticity',		'notelastic_r1',		'SimulatedFlatDynamic',		'true',				'2',			'9',				'1',
+				'notelastic_r1_sd_0_r3',		'0',	'equal_costs',				'logit_no_elasticity',		'notelastic_r1',		'SimulatedFlatDynamic',		'true',				'3',			'9',				'1',
+				'notelastic_r1_sd_0_r4',		'0',	'equal_costs',				'logit_no_elasticity',		'notelastic_r1',		'SimulatedFlatDynamic',		'true',				'4',			'9',				'1',
+				'notelastic_r1_sd_0_r5',		'0',	'equal_costs',				'logit_no_elasticity',		'notelastic_r1',		'SimulatedFlatDynamic',		'true',				'5',			'9',				'1',
+				'sd_no_rails',					'0',	'equal_costs',				'logit_no_elasticity',		'notelastic_r1',		'SimulatedFlatDynamic',		'true',				'5',			'9',				'1',
+				'md_no_rails',					'0',	'equal_costs',				'logit_no_elasticity',		'notelastic_r1',		'ModelledDynamic',			'true',				'5',			'9',				'1',
+				'cd_no_rails',					'0',	'equal_costs',				'logit_no_elasticity',		'notelastic_r1',		'SimulatedFlatDynamic',		'true',				'5',			'9',				'1',
+				'id_no_rails',					'0',	'equal_costs',				'logit_no_elasticity',		'notelastic_r1',		'SimulatedObservedDynamic',	'true',				'5',			'9',				'1',
+				'elastic_r1_cd_0_r0',			'0',	'curr_costs_state_eval',	'logit_w_elasticity',		'elastic_r1',			'SimulatedFlatDynamic',		'true',				'0',			'9',				'1',
+				'elastic_r1_cd_0_r1',			'0',	'curr_costs_state_eval',	'logit_w_elasticity',		'elastic_r1',			'SimulatedFlatDynamic',		'true',				'1',			'9',				'1',
+				'elastic_r1_cd_0_r2',			'0',	'curr_costs_state_eval',	'logit_w_elasticity',		'elastic_r1',			'SimulatedFlatDynamic',		'true',				'2',			'9',				'1',
+				'elastic_r1_cd_0_r3',			'0',	'curr_costs_state_eval',	'logit_w_elasticity',		'elastic_r1',			'SimulatedFlatDynamic',		'true',				'3',			'9',				'1',
+				'elastic_r1_cd_0_r4',			'0',	'curr_costs_state_eval',	'logit_w_elasticity',		'elastic_r1',			'SimulatedFlatDynamic',		'true',				'4',			'9',				'1',
+				'elastic_r1_cd_0_r5',			'0',	'curr_costs_state_eval',	'logit_w_elasticity',		'elastic_r1',			'SimulatedFlatDynamic',		'true',				'5',			'9',				'1',
+				'notelastic_r1_cd_0_r0',		'0',	'curr_costs_state_eval',	'logit_no_elasticity',		'notelastic_r1',		'SimulatedFlatDynamic',		'true',				'0',			'9',				'1',
+				'notelastic_r1_cd_0_r1',		'0',	'curr_costs_state_eval',	'logit_no_elasticity',		'notelastic_r1',		'SimulatedFlatDynamic',		'true',				'1',			'9',				'1',
+				'notelastic_r1_cd_0_r2',		'0',	'curr_costs_state_eval',	'logit_no_elasticity',		'notelastic_r1',		'SimulatedFlatDynamic',		'true',				'2',			'9',				'1',
+				'notelastic_r1_cd_0_r3',		'0',	'curr_costs_state_eval',	'logit_no_elasticity',		'notelastic_r1',		'SimulatedFlatDynamic',		'true',				'3',			'9',				'1',
+				'notelastic_r1_cd_0_r4',		'0',	'curr_costs_state_eval',	'logit_no_elasticity',		'notelastic_r1',		'SimulatedFlatDynamic',		'true',				'4',			'9',				'1',
+				'notelastic_r1_cd_0_r5',		'0',	'curr_costs_state_eval',	'logit_no_elasticity',		'notelastic_r1',		'SimulatedFlatDynamic',		'true',				'5',			'9',				'1',
+				'elastic_r1_id_0_r0',			'0',	'curr_costs_state_eval',	'logit_w_elasticity',		'elastic_r1',			'SimulatedObservedDynamic',	'true',				'0',			'9',				'1',
+				'elastic_r1_id_0_r1',			'0',	'curr_costs_state_eval',	'logit_w_elasticity',		'elastic_r1',			'SimulatedObservedDynamic',	'true',				'1',			'9',				'1',
+				'elastic_r1_id_0_r2',			'0',	'curr_costs_state_eval',	'logit_w_elasticity',		'elastic_r1',			'SimulatedObservedDynamic',	'true',				'2',			'9',				'1',
+				'elastic_r1_id_0_r3',			'0',	'curr_costs_state_eval',	'logit_w_elasticity',		'elastic_r1',			'SimulatedObservedDynamic',	'true',				'3',			'9',				'1',
+				'elastic_r1_id_0_r4',			'0',	'curr_costs_state_eval',	'logit_w_elasticity',		'elastic_r1',			'SimulatedObservedDynamic',	'true',				'4',			'9',				'1',
+				'elastic_r1_id_0_r5',			'0',	'curr_costs_state_eval',	'logit_w_elasticity',		'elastic_r1',			'SimulatedObservedDynamic',	'true',				'5',			'9',				'1',
+				'notelastic_r1_id_0_r0',		'0',	'curr_costs_state_eval',	'logit_no_elasticity',		'notelastic_r1',		'SimulatedObservedDynamic',	'true',				'0',			'9',				'1',
+				'notelastic_r1_id_0_r1',		'0',	'curr_costs_state_eval',	'logit_no_elasticity',		'notelastic_r1',		'SimulatedObservedDynamic',	'true',				'1',			'9',				'1',
+				'notelastic_r1_id_0_r2',		'0',	'curr_costs_state_eval',	'logit_no_elasticity',		'notelastic_r1',		'SimulatedObservedDynamic',	'true',				'2',			'9',				'1',
+				'notelastic_r1_id_0_r3',		'0',	'curr_costs_state_eval',	'logit_no_elasticity',		'notelastic_r1',		'SimulatedObservedDynamic',	'true',				'3',			'9',				'1',
+				'notelastic_r1_id_0_r4',		'0',	'curr_costs_state_eval',	'logit_no_elasticity',		'notelastic_r1',		'SimulatedObservedDynamic',	'true',				'4',			'9',				'1',
+				'notelastic_r1_id_0_r5',		'0',	'curr_costs_state_eval',	'logit_no_elasticity',		'notelastic_r1',		'SimulatedObservedDynamic',	'true',				'5',			'9',				'1'
+				];
+			}
+	
+			attribute<bool>		PathDependencyPaperScenario:	expr = "IsDefined(strpos(Name, 'elastic_r1_od_0_r')) || IsDefined(strpos(Name, 'elastic_r1_os_0_r')) || IsDefined(strpos(Name, 'elastic_r1_md_0_r')) || IsDefined(strpos(Name, 'elastic_r1_sd_0_r')) || IsDefined(strpos(Name, 'elastic_r1_cd_0_r')) || IsDefined(strpos(Name, 'elastic_r1_id_0_r'))";
+			attribute<bool>		ModelledPopulation:				expr = "popfield_eval = 'SimulatedFlatDynamic' || popfield_eval = 'SimulatedObservedDynamic' || popfield_eval = 'ModelledDynamic'";
+			attribute<string> 	Name: 							expr = "Table/Data[((id(.)*NrAttributes)+0)[Table]]";
+			attribute<uint32>	RandomBase:						expr = "uint32(Table/Data[((id(.)*NrAttributes)+1)[Table]])";
+			attribute<string>	costfield_eval: 				expr = "Table/Data[((id(.)*NrAttributes)+2)[Table]]";
+			attribute<string> 	MatrixSelection:				expr = "Table/Data[((id(.)*NrAttributes)+3)[Table]]";
+			attribute<string> 	InvestmentSelection:			expr = "Table/Data[((id(.)*NrAttributes)+4)[Table]]";
+			attribute<string>   popfield_eval:					expr = "Table/Data[((id(.)*NrAttributes)+5)[Table]]";
+			attribute<bool>		maxLengthFromWindow:			expr = "bool(Table/Data[((id(.)*NrAttributes)+6)[Table]])";
+			attribute<string>	rankselord:						expr = "Table/Data[((id(.)*NrAttributes)+7)[Table]]";
+			attribute<uint32>   nr_HighProbability_alternatives:expr = "uint32(Table/Data[((id(.)*NrAttributes)+8)[Table]])";
+			attribute<bool>		genshortestpaths:				expr = "Name = 'calib_elastic_rnd_shortest'";
+			attribute<uint16> 	InvestmentPause: 				expr = "uint16(Table/Data[((id(.)*NrAttributes)+9)[Table]])";
+			attribute<string> 	Label:							expr = "Name";
+			
+			attribute<float32> 	WalkKmh:						expr = "const(4,.,float32)";
+			attribute<float32> 	TrainKmh: 						expr = "strcount(Name, 'speed_inc') = 0 ? 30f : 0.0000115f * exp(0.0079f * RunSettings/inYear[float32])";
+			attribute<float32>  LocalKmh:						expr = "strcount(Name, 'local_speed') = 0 ? TrainKmh : 16f";
+			attribute<bool>		Alonso_model:					expr = "strcount(Name, 'notelastic') = 0";
+			attribute<float32> 	scenario_b1:					expr = "strcount(Name, 'RietveldBruinsma') = 0 ? -1.8f : -2.0f";
+			
+			attribute<string>   OrgDest_def_eval: 				expr = "strcount(Name, 'RietveldBruinsma') = 0 ? 'BCR' : 'BCRRietveldBruinsma'";
+			attribute<string> 	cost_def_eval:					expr = "switch(case(strcount(Name, 'RietveldBruinsma') > 0, 'RietveldBruinsma_costs'), case(strcount(Name, '_sd_') > 0, 'equal_costs'), 'EstimatedCosts')";
+			attribute<string> 	path_def_eval:					expr = "id(.) <> 16 ? DecisionParams/PlausiblePath_Suitability/HighPassengerMileage : DecisionParams/PlausiblePath_Suitability/NoBenefits";
+			attribute<s>		WaitingSeconds: 				expr = "strcount(Name, 'RietveldBruinsma') = 0 ? 600[s] : 0[s]";
+			attribute<uint32>   NumberOfRandomAlternatives: 	expr = "switch(case(strcount(Name, '5Random') > 0, 5), case(strcount(Name, 'Random') > 0, 1),  0)";
+			attribute<bool>		modelRealInvestments: 			expr = "strcount(Name, 'calib') > 0"; // currently no more real investment modelling foreseen
+			attribute<string>	rankselection:					expr = "rankselord + ' * uint32(RunSettings/CurrentInvestment = 0) * #Operators/ActiveOperators'";
+			attribute<bool>		compareresults:					expr = "id(.) > 7 && IsNull(strpos(Name, 'orthern')) && IsNull(strpos(Name, 'rabant'))"; //<14 because notelastic r scenarios still running, 16/3/2020
+			attribute<uint32>	Startyear:						expr = "const(1839,.,uint32)";
+			attribute<uint32>   FirstModelledInvestment:		expr = "uint32(IsDefined(strpos(Name, 'Northern')))";
+		}
+		//parameter<uint16> CheckWithRealInvestments: expr = "min(SourceData/Railroads/Railroads/Railroad_data/Investments/CumuLength < sum(StartNet/RailNetwork/length) ? uint16(9999) : SourceData/Railroads/Railroads/Railroad_data/Investments/OpenYear)";
+		parameter<uint16> CheckWithRealInvestments:= Scenarios/modelRealInvestments[ScenarioId] ? SourceData/Railroads/Railroads/Railroad_data/Investments/OpenYear[CurrentInvestment] : SourceData/Railroads/Railroads/Railroad_data/Investments/OpenYear[classify(sum(StartNet/RailNetwork/length * float32(StartNet/RailNetwork/IsRail)), SourceData/Railroads/Railroads/Railroad_data/Investments/CumuLength)];
+		unit<uint32> ScenariosXOperators: expr = "combine(Scenarios, Operators/Operators)"
+		{
+			attribute<upoint> attId:expr = "point(first_rel, second_rel, upoint)";
+			attribute<bool> Active: expr = "switch(case((Scenarios/Name[first_rel] = 'B5_privates' || Scenarios/Name[first_rel] = 'B5_privates_cooperate') && (Operators/Operators/Local[second_rel] + Operators/Operators/State[second_rel] > uint16(0)), False)"
+				", case(Scenarios/Name[first_rel] = 'elastic_no_state' && Operators/Operators/State[second_rel] > uint16(0), False), True)";
+		}
+	}
+	#include<DecisionParams.dms>
+	#include<Units.dms>
+	#include<Params.dms>
+	#include<SourceData.dms>
+	#include<PopulationModels.dms>
+	#include<Operators.dms>
+	#include<StartNet.dms>
+	#include<AltRailways.dms>	
+	#include<TransportModel.dms>
+	#include<InvestmentDecisionEval.dms>
+	
+	container PostProcessing {
+		#include<Postprocessing/ResultsCumulation.dms>
+		#include<Postprocessing/ResultsComparison_general.dms>
+		#include<Postprocessing/ScenariosComparison_pathdependencies_paper.dms>
+	}
+
+}

@@ -1,0 +1,450 @@
+Container SelZones: Using = "Units;SourceData;PopulationModels;SourceData/Regularly_latticed_altnet;SourceData/Railroads/Railroads;Year;"
+{	
+	Container Network: expr = "='NetworksPreparation/getNetwork('+ string(RunSettings/inYear) +')'";
+	
+	Container Alternatives
+	{
+		parameter<Years>  YearId: 	expr = "min(Years/Year = uint32(RunSettings/inYear) ? id(Years): mean(0 / 0))";
+		parameter<uint32> inYear:	expr = "uint32(RunSettings/InYear)";
+		parameter<uint32> Period:	expr = "Years/Period[YearId]";
+		
+		attribute<float32> 	popZones 			(Zones): 		expr = "PopulationModels/Population/Population";
+		attribute<float32>  Saturation			(Zones): 		expr = "TravelTimes/Saturationi";
+		attribute<float32>	constructionCosts	(BaseNetwork):	expr = "BaseNetwork/Costs";
+		attribute<float32>	constructionLength	(BaseNetwork): 	expr = "BaseNetwork/Length";
+		attribute<float32>  constructionBenefits(BaseNetwork): 	expr = "= RunSettings/Scenarios/path_def_eval[RunSettings/ScenarioId]";
+		
+		attribute<float32> 	BCR					(BaseNetwork): expr = "constructionBenefits / constructionCosts";
+		
+		container realInvestment: expr = "RealInvestmentConstructor";
+			
+		container TravelTimes: 				expr = "getExistingTravelTimes(InYear + 10)";
+
+		parameter<float32>  minTimeImprovement:		expr = "params/minTimeImprovement"; //indicates minimum relative time improvement to be achieved by constructing railway line
+		
+		unit<uint32> BaseNetwork: expr = "Network/BaseNetwork"
+		{
+			unit<uint32> NodeSet: expr = "Network/BaseNetwork/NodeSet";
+		}
+		container connectedZones
+		{
+			attribute<bool> selNodes (baseNetwork/NodeSet): expr = "!IsNull(baseNetwork/NodeSet/ExistingNetNode)";
+			attribute<bool> connectedZones (Zones): expr = "any(selNodes, baseNetwork/NodeSet/ZoneId)";
+		}
+		
+		unit<uint32> ODmatrix: expr = "TravelTimes/ODMatrix"
+		{
+			attribute<float32> borderconn: 	expr = "float32(Zones/isBorderZone[fromZone] 	+ Zones/isBorderZone[toZone] > uint16(0))";
+			attribute<bool>    bci:			expr = "Zones/isBorderZone[fromZone] 	> uint16(0)";
+			attribute<bool>    bcj:			expr = "Zones/isBorderZone[toZone] 		> uint16(0)";
+			attribute<float32> provcap:	 	expr = "float32(Zones/isProvHoofd[fromZone] 	+ Zones/isProvHoofd[toZone] > uint16(0))";
+			attribute<bool>    provcapi:	expr = "Zones/isProvHoofd[fromZone] 	> uint16(0)";
+			attribute<bool>    provcapj:	expr = "Zones/isProvHoofd[toZone] 		> uint16(0)";
+			attribute<float32> mining:		expr = "float32(Zones/isMine[fromZone] 			+ Zones/isMine[toZone] > uint16(0))";
+			attribute<float32> harbour:		expr = "float32(Zones/isHaven[fromZone] 		+ Zones/isHaven[toZone] > uint16(0))";
+			attribute<float32> ln_pop:		expr = "float32(log(float32(Zones/Population[fromZone] + Zones/Population[toZone]) + float32(0.01)))";
+			attribute<float32> ln_costs:	expr = "log(Costs + float32(0.01))";
+			attribute<float32> dpk:			expr = "PK1ij - PK0ij";
+			attribute<float32> op_bcr:		expr = "convert(dpk, float32) / Costs";
+			attribute<float32> soc_bcr:		expr = "convert(soc_ben, float32) / Costs";
+			attribute<float32> conni:		expr = "float32(ConnectedZones/connectedZones[FromZone])";
+			attribute<float32> connj:		expr = "float32(ConnectedZones/connectedZones[toZone])";
+			attribute<float32> connij:		expr = "float32(ConnectedZones/connectedZones[FromZone] && ConnectedZones/connectedZones[toZone])";
+		}
+		
+		Unit<uint32> RealInvestmentCombo: expr = "subset(ODmatrix/realInvestment)"
+		{
+			attribute<float32>	BCR:		expr = "= RunSettings/Scenarios/OrgDest_def_eval[RunSettings/ScenarioId]";
+			attribute<Zones>	FromZone:	expr = "ODmatrix/FromZone[Nr_OrgEntity]";
+			attribute<Zones>	ToZone:		expr = "ODmatrix/ToZone[Nr_OrgEntity]";
+			attribute<float32> 	Bij: 		expr = "ODmatrix/Bij[Nr_OrgEntity]";
+			attribute<float32>  c0ij: 		expr = "ODmatrix/c0ij[Nr_OrgEntity]";
+		}
+		
+		Unit<uint32> ZoneCombo: expr = "subset(ODMatrix/FromZone < ODMatrix/ToZone && ODMatrix/Bij < RunSettings/MaxLength && ODMatrix/c1ij < ODMatrix/c0ij)"
+		{
+			
+			attribute<Zones>		FromZone: 			expr = "ODmatrix/FromZone[Nr_OrgEntity]";
+			attribute<Zones>		ToZone: 			expr = "ODmatrix/ToZone[Nr_OrgEntity]";
+			attribute<bool>			From_to_top35:		expr = "popZones[FromZone] >= nth_element(popZones, (#Zones - 35)) && popZones[ToZone] >= nth_element(popZones, (#Zones - 35))";
+			attribute<string>		From:				expr = "Zones/Mun[FromZone]";
+			attribute<string>		To:					expr = "Zones/Mun[ToZone]";
+			attribute<float32> 		c0ij:  				expr = "value(ODmatrix/c0ij[Nr_OrgEntity], float32)";
+			attribute<float32>		c1ij:				expr = "value(ODmatrix/c1ij[Nr_OrgEntity], float32)";
+			attribute<float32> 		Bij:				expr = "ODmatrix/Bij[Nr_OrgEntity]";
+   			attribute<float32> 		PK0ij:				expr = "value(ODmatrix/PK0ij[Nr_OrgEntity], float32)";
+   			attribute<float32> 		PK1ij:				expr = "value(ODmatrix/PK1ij[Nr_OrgEntity], float32)";
+   			attribute<float32>		Costs:				expr = "ODMatrix/Costs[Nr_OrgEntity]";
+   			attribute<float32>		BCR:				expr = "MakeDefined((PK1ij - PK0ij) / Costs, float32(0))";
+   			attribute<float32>		BCRRietveldBruinsma:expr = "From_to_top35 ? BCR : float32(-1000)";
+			
+			attribute<float32>		op_bcr:				expr = "BCR";
+			attribute<float32>		soc_bcr:			expr = "ODMatrix/soc_bcr[Nr_OrgEntity] / Costs";
+			attribute<bool> 		provcapi:			expr = "bool(Zones/isProvHoofd[fromZone])";
+			attribute<bool> 		provcapj:			expr = "bool(Zones/isProvHoofd[toZone])";
+			attribute<bool> 		bci:				expr = "bool(Zones/isBorderZone[FromZone]) && !conni";
+			attribute<bool> 		bcj:				expr = "bool(Zones/isBorderZone[ToZone]) && !connj";
+			attribute<bool> 		conni:				expr = "(ConnectedZones/connectedZones[FromZone])";
+			attribute<bool> 		connj:				expr = "(ConnectedZones/connectedZones[toZone])";
+			
+			attribute<float32> 		borderconn: 		expr = "float32(Zones/isBorderZone[fromZone] 	+ Zones/isBorderZone[toZone] > uint16(0))";
+			attribute<float32> 		provcap:	 		expr = "float32(Zones/isProvHoofd[fromZone] 	+ Zones/isProvHoofd[toZone] > uint16(0))";
+			attribute<float32> 		mining:				expr = "float32(Zones/isMine[fromZone] 			+ Zones/isMine[toZone] > uint16(0))";
+			attribute<float32> 		harbour:			expr = "float32(Zones/isHaven[fromZone] 		+ Zones/isHaven[toZone] > uint16(0))";
+			attribute<float32> 		ln_costs:			expr = "log(Costs + float32(0.01))";
+			attribute<float32> 		dpk:				expr = "PK1ij - PK0ij";
+			attribute<float32> 		connij:				expr = "float32(ConnectedZones/connectedZones[FromZone] && ConnectedZones/connectedZones[toZone])";
+			attribute<float32> 		utility:			expr = "= DecisionParams/Matrix_link_selection/GenericModel";
+ 			attribute<float32> 		random:				expr = "rnd_uniform(RunSettings/Scenarios/RandomBase[RunSettings/ScenarioId] + RunSettings/CurrentInvestment, ., range(float32, float32(0), sd(utility)))";
+			attribute<float32>		mixed_random:		expr = "probability >= Prob_Min ? random : -9999f";
+			attribute<float32> 		exp_utility: 		expr = "exp(utility + random)";
+			attribute<float32> 		probability:		expr = "MakeDefined(exp_utility / sum(exp_utility), float32(0))";
+			parameter<float32> 		Prob_Min:			expr = "nth_element(probability, #ZoneCombo - Params/NumberOfHighProbability_alternatives)";
+			parameter<float32>		Rnd_Min:			expr = "nth_element(mixed_random, #ZoneCombo - Params/NumberOfRandomAlternatives)";
+			
+		}
+		Unit<uint32> AlternativesSet: expr = "subset(ZoneCombo/probability >= ZoneCombo/Prob_Min || ZoneCombo/mixed_random > ZoneCombo/Rnd_Min)"
+		{
+			attribute<uint32> 	org_matrix:	expr = "Nr_OrgEntity";
+			attribute<Zones>	FromZone:	expr = "ZoneCombo/FromZone[Nr_OrgEntity]";
+			attribute<Zones>	ToZone:		expr = "ZoneCombo/ToZone[Nr_OrgEntity]";
+			attribute<float32> 	Bij: 		expr = "ZoneCombo/Bij[Nr_OrgEntity]";
+			attribute<float32>  c0ij: 		expr = "ZoneCombo/c0ij[Nr_OrgEntity]";
+			attribute<uint32>	op_id:		expr = "const(0 / 0,.,uint32)";
+		}
+		
+		parameter<string> AlternativeSet_StoragePlace: expr = "'%ProjDir%/runs/'+ RunSettings/Scenarios/Name[RunSettings/ScenarioId] + '/altgeneration/selset_'+ string(RunSettings/CurrentInvestment)";
+		
+		Container GenWithoutOperatorCharacteristics {
+			
+			unit<uint32> Alternatives: expr = "AlternativesSet";
+			
+		}
+		Container GenWithOperatorCharacteristics {
+			attribute<bool> alreadyhaslinks (Operators/Operators): expr = "(pcount(BaseNetwork/op_id) > 0)";
+			attribute<bool> active			(Operators/Operators): expr = "IsDefined(invert(Operators/ActiveOperators/Nr_OrgEntity))";
+			parameter<bool> actives_wo_links: expr = "any(active && !alreadyhaslinks)";
+			
+			unit<uint32> RelevantOperators: expr = "subset(RunSettings/Scenarios/modelRealInvestments[RunSettings/ScenarioId] ? (Operators/Operators/Name = Operators/Real_Operators/name[realInvestment/OpId]) : (active && alreadyhaslinks) || (actives_wo_links && id(Operators/Operators) = 0))" {
+				attribute<string> name: expr = "Operators/Operators/Name[Nr_OrgEntity]";
+			}                                                                                           
+			unit<uint32> Alternatives: expr = "combine(RelevantOperators, AlternativesSet)" {
+				attribute<Zones>	FromZone:	expr = "AlternativesSet/FromZone		[second_rel]";
+				attribute<Zones>	ToZone:		expr = "AlternativesSet/ToZone			[second_rel]";
+				attribute<float32> 	Bij: 		expr = "AlternativesSet/Bij				[second_rel]";
+				attribute<float32>  c0ij: 		expr = "AlternativesSet/c0ij			[second_rel]";
+				attribute<uint32>	op_id:		expr = "RelevantOperators/Nr_OrgEntity	[first_rel]";
+			}
+		}
+		
+		Unit<uint32> SelAlternatives: expr = "union_unit(RealInvestmentCombo, GenWithOperatorCharacteristics/Alternatives)"
+			{	
+				attribute<string>	AltName:	expr = "'presel_' + string(id(SelAlternatives))";
+				attribute<Zones>	FromZone: 	expr = "union_data(., RealInvestmentCombo/FromZone, GenWithOperatorCharacteristics/Alternatives/FromZone)";
+				attribute<Zones>	ToZone: 	expr = "union_data(., RealInvestmentCombo/ToZone, GenWithOperatorCharacteristics/Alternatives/ToZone)";
+				attribute<float32>	Bij:		expr = "union_data(., RealInvestmentCombo/Bij, GenWithOperatorCharacteristics/Alternatives/Bij)";
+				attribute<float32>	c0ij:		expr = "union_data(., RealInvestmentCombo/c0ij, GenWithOperatorCharacteristics/Alternatives/c0ij)";
+				attribute<uint32>	op_id:		expr = "union_data(., const(0 / 0,RealInvestmentCombo,uint32), GenWithOperatorCharacteristics/Alternatives/op_id)";
+				attribute<float32>  RoadDist:	expr = "Bij * LinkTypes/speeds[LinkTypes/V/Walking]";
+				attribute<float32>  mRailDist:	expr = "const(sum(BaseNetwork/Length),.,float32)";
+				//attribute<float32>  mRailDist:	expr = "((c0ij - params/WaitingSeconds - params/WaitingSeconds - ((StartNet/Connectors/min_conn_length[FromZone] + StartNet/Connectors/min_conn_length[ToZone]) / params/WalkSpeed)) / minTimeImprovement) * params/TrainSpeed";
+				attribute<float32>  mGeoDist:	expr = "mRailDist / RoadDist";
+				attribute<string>	From:		expr = "Zones/Mun[FromZone]";
+				attribute<string>	To:			expr = "Zones/Mun[ToZone]";
+				attribute<string> 	Name: 		expr = "From + ' to ' + To";
+				attribute<bool>		realInvest: expr = "union_data(., const(True,RealInvestmentCombo,bool), const(False,GenWithOperatorCharacteristics/Alternatives,bool))";
+				attribute<bool>		ex_links:	expr = "const(False, ., bool)"; //bool(round(rnd_uniform(fromzone + tozone, ., range(float32, float32(0), float32(1)))))";
+				//attribute<float32>  kfact:		expr = "= 'union_data(., '+ AsItemList('genLinks/'+ SelAlternatives/AltName +'/bestlinks/this_k') +')'";
+			}
+		
+		
+		Container genLinks: expr = "for_each_ne(SelAlternatives/AltName, 
+			SelAlternatives/realInvest ? 'AltLinks/ManageRealInvestmentAddition(Alternatives/realInvestment)' : 
+			'AltLinks/ManageAltLinkGeneration('+string(SelAlternatives/FromZone)+','+string(SelAlternatives/ToZone)+', float32('+ string(SelAlternatives/mRailDist) +'), BaseNetwork, BaseNetwork/NodeSet, '+string(SelAlternatives/op_id)+')'
+			)"
+		{
+			unit<uint32> CollectRoutes: expr = "SelAlternatives" 
+			{
+				attribute<float32> 	BCR: 				expr = "= 'union_data(., '+ AsItemList(AltName + '/bestLinks/this_r_value') +') + rnd_uniform(1, ., range(float32, float32(0),float32(0.1)))'"; 
+				attribute<bool>		selBCR:				expr = "BCR >= sel_BCR_crit && !realInvest";
+				attribute<bool>	 	respects_maxdist:	expr = "= 'union_data(., '+ AsItemList(AltName + '/bestLinks/respects_maxdist') +')'"; 
+				attribute<.> 		Rnd: 				expr = "rnd_permutation(RunSettings/CurrentInvestment, .)";
+				attribute<uint32>   Rnd_sel:			expr = "Rnd + (uint32(!respects_maxdist) * 10 * params/NumberOfAlternatives) + (uint32(selBCR) * 100 * params/NumberOfAlternatives)";
+				attribute<bool>		selRnd:				expr = "Rnd_sel < sel_rnd_crit && !realInvest";
+				parameter<uint32>	num_distOK:			expr = "sum(uint32(respects_maxdist))";
+				parameter<uint32>	sel_rnd_crit:		expr = "nth_element(Rnd_sel, params/NumberOfRandomAlternatives)";
+				parameter<float32> 	sel_BCR_crit: 		expr = "nth_element(BCR, #CollectRoutes - sum(uint32(realInvest)) - (params/NumberOfHighProbability_alternatives * #GenWithOperatorCharacteristics/RelevantOperators))";
+			}
+			unit<uint32> HighBCR: 	expr = "subset(CollectRoutes/selBCR)"
+			{
+				attribute<string> PreSelName: 	expr = "CollectRoutes/AltName[Nr_OrgEntity]";
+				attribute<Zones>  FromZone:	 	expr = "CollectRoutes/FromZone[Nr_OrgEntity]";
+				attribute<Zones>  ToZone: 		expr = "CollectRoutes/ToZone[Nr_OrgEntity]";
+				attribute<string> Name:			expr = "CollectRoutes/Name[Nr_OrgEntity]";
+				attribute<float32>BCR:			expr = "CollectRoutes/BCR[Nr_OrgEntity]";
+			}
+			unit<uint32> Random: 	expr = "subset(CollectRoutes/selRnd)"
+			{
+				attribute<string> PreSelName: 	expr = "CollectRoutes/AltName[Nr_OrgEntity]";
+				attribute<Zones>  FromZone:	 	expr = "CollectRoutes/FromZone[Nr_OrgEntity]";
+				attribute<Zones>  ToZone: 		expr = "CollectRoutes/ToZone[Nr_OrgEntity]";
+				attribute<string> Name:			expr = "CollectRoutes/Name[Nr_OrgEntity]";
+				attribute<float32>BCR:			expr = "CollectRoutes/BCR[Nr_OrgEntity]";
+			}
+			unit<uint32> realInvestment: expr = "subset(CollectRoutes/realInvest)"
+			{
+				attribute<string> PreSelName: 	expr = "CollectRoutes/AltName[Nr_OrgEntity]";
+				attribute<Zones>  FromZone:	 	expr = "CollectRoutes/FromZone[Nr_OrgEntity]";
+				attribute<Zones>  ToZone: 		expr = "CollectRoutes/ToZone[Nr_OrgEntity]";
+				attribute<string> Name:			expr = "CollectRoutes/Name[Nr_OrgEntity]";
+				attribute<float32>BCR:			expr = "CollectRoutes/BCR[Nr_OrgEntity]";
+			}
+			unit<uint32> SelectRoutes: 	expr = "union_unit(realInvestment, HighBCR, Random)", StorageName = "= AlternativeSet_StoragePlace + '.dbf'" 
+			{
+				attribute<string> PreSelName: 	expr = "union_data(., realInvestment/PreSelName,HighBCR/PreSelName, Random/PreSelName)";
+				attribute<Zones>  FromZone:	 	expr = "union_data(., realInvestment/FromZone, 	HighBCR/FromZone, 	Random/FromZone)";
+				attribute<Zones>  ToZone: 		expr = "union_data(., realInvestment/ToZone, 	HighBCR/ToZone, 	Random/ToZone)";
+				attribute<string> Name:			expr = "union_data(., realInvestment/Name, 		HighBCR/Name, 		Random/Name)";
+				attribute<float32>BCR:			expr = "union_data(., realInvestment/BCR, 		HighBCR/BCR, 		Random/BCR) / float32(1000)";
+				attribute<string> AltName:		expr = "'alt_' + string(id(.))";
+				attribute<bool>	  sel_link:		expr = "union_data(., const(True, realInvestment, bool), const(False, HighBCR, bool), const(False, Random, bool))";
+			}
+		}
+		
+		parameter<string> ResultsCollection_StoragePlace: expr = "'%ProjDir%/runs/'+ RunSettings/Scenarios/Name[RunSettings/ScenarioId] + '/altgeneration/alt_'+ string(RunSettings/CurrentInvestment)";
+		
+		Container ResultsCollection
+		{
+			unit<uint32> allLinks: expr = "= 'union_unit('+ AsItemList('genLinks/'+ genlinks/SelectRoutes/PreSelName +'/bestLinks') +')'", DialogData = "line", Dialogtype = "Map", StorageName = "= ResultsCollection_StoragePlace + '.dbf'", ExplicitSuppliers = "genLinks/SelectRoutes;"
+			{
+				attribute<point_rd> 			line (arc): expr = "= 'union_data(.,'+ AsItemList('genLinks/'+ genlinks/SelectRoutes/PreSelName +'/bestLinks/line') +')'", StorageName = "= ResultsCollection_StoragePlace +'.shp'";
+				attribute<float32> 				costs: 		expr = "= 'union_data(.,'+ AsItemList('genLinks/'+ genlinks/SelectRoutes/PreSelName +'/bestLinks/realcosts') +')'";
+				attribute<float32> 				length: 	expr = "= 'union_data(.,'+ AsItemList('genLinks/'+ genlinks/SelectRoutes/PreSelName +'/bestLinks/length') +')'";
+				attribute<uint32>  				altid: 		expr = "= 'union_data(.,'+ AsItemList('const(' + string(id(genlinks/SelectRoutes)) + ', genLinks/'+ genlinks/SelectRoutes/PreSelName +'/bestLinks, genlinks/SelectRoutes)') +')'";
+				attribute<string>				Label:		expr = "genlinks/SelectRoutes/Name[altid]";
+				attribute<uint32>				sel_link:	expr = "uint32(genlinks/SelectRoutes/sel_link[altid])";
+				attribute<uint32>				LinkType:	expr = "= 'union_data(.,'+ AsItemList('genLinks/'+ genlinks/SelectRoutes/PreSelName +'/bestLinks/LinkType') +')'";
+			}
+			container matrix_storage { // within container to possibly prevent extreme load times
+				unit<uint32> StoreMatrix: expr = "subset(ODMatrix/ExportSel)", StorageName = "= '%ProjDir%/runs/'+ RunSettings/Scenarios/Name[RunSettings/ScenarioId] + '/od_sets/odset_'+ string(RunSettings/CurrentInvestment)+ '.dbf'"
+				{
+					attribute<Zones>		FromZone: 			expr = "ODmatrix/FromZone[Nr_OrgEntity]";
+					attribute<Zones>		ToZone: 			expr = "ODmatrix/ToZone[Nr_OrgEntity]";
+					attribute<bool>			BCi:				expr = "bool(Zones/BorderZone[FromZone])";
+					attribute<bool>			BCj:				expr = "bool(Zones/BorderZone[ToZone])";
+					attribute<bool>			ProvCapi:			expr = "bool(Zones/ProvHoofd[FromZone])";
+					attribute<bool>			ProvCapj:			expr = "bool(Zones/ProvHoofd[ToZone])";
+					attribute<bool>			Miningi:			expr = "bool(Zones/Mijnbouw[FromZone])";
+					attribute<bool>			Miningj:			expr = "bool(Zones/Mijnbouw[ToZone])";
+					attribute<bool>			Harbouri:			expr = "bool(Zones/Haven[FromZone])";
+					attribute<bool>			Harbourj:			expr = "bool(Zones/Haven[ToZone])";
+					attribute<string>		From:				expr = "Zones/Mun[FromZone]";
+					attribute<string>		To:					expr = "Zones/Mun[ToZone]";
+					attribute<float32> 		FromPop:			expr = "float32(popZones[FromZone])";
+					attribute<float32> 		ToPop:				expr = "float32(popZones[ToZone])";
+					attribute<bool> 		Conni:				expr = "connectedZones/connectedZones[FromZone]";
+					attribute<bool> 		Connj:				expr = "connectedZones/connectedZones[ToZone]";
+					attribute<float32> 		c0ij:  				expr = "ODmatrix/c0ij[Nr_OrgEntity]";
+					attribute<float32> 		c1ij:  				expr = "ODmatrix/c1ij[Nr_OrgEntity]";
+					attribute<float32> 		Bij:  				expr = "ODmatrix/Bij[Nr_OrgEntity]";
+					attribute<float32> 		PKBij:  			expr = "ODmatrix/PKBij[Nr_OrgEntity]";
+					attribute<float32> 		PK0ij:  			expr = "ODmatrix/PK0ij[Nr_OrgEntity]";
+					attribute<float32> 		PK1ij:  			expr = "ODmatrix/PK1ij[Nr_OrgEntity]";
+					attribute<float32>		Costs:				expr = "ODmatrix/Costs[Nr_OrgEntity]";
+	//				attribute<float32> 		A0i:  				expr = "union_data(., ODmatrix/A0i[ZoneCombo/Nr_OrgEntity], ODmatrix/A0i[RealInvestmentCombo/Nr_OrgEntity])";
+	//				attribute<float32> 		A1i:				expr = "union_data(., ODmatrix/A1i[ZoneCombo/Nr_OrgEntity], ODmatrix/A1i[RealInvestmentCombo/Nr_OrgEntity])";
+	//				attribute<float32> 		A0j:  				expr = "union_data(., ODmatrix/A0j[ZoneCombo/Nr_OrgEntity], ODmatrix/A0j[RealInvestmentCombo/Nr_OrgEntity])";
+	//				attribute<float32> 		A1j:				expr = "union_data(., ODmatrix/A1j[ZoneCombo/Nr_OrgEntity], ODmatrix/A1j[RealInvestmentCombo/Nr_OrgEntity])";
+					attribute<float32>		BCR:				expr = "MakeDefined((PK1ij - PK0ij) / Costs, float32(0))";
+					attribute<float32> 		soc_ben:			expr = "ODmatrix/soc_ben[Nr_OrgEntity]";
+					attribute<uint16>		realInvestment:		expr = "uint16(ODmatrix/realInvestment[Nr_OrgEntity])";
+				}
+			}
+		}
+	}
+	
+	Container getExistingTravelTimes: IsTemplate = "True"
+	{
+		parameter<uint32> EndPeriod;
+		
+		// hier in vervolg als criterium alle k-neighbours (met k gedefinieerd als traversible by train).
+		unit<uint32> YearNet: expr = "StartNet/WholeNetwork",
+			DialogData = "line", DialogType = "map"
+			
+		{
+			attribute<point_rd> line (arc): 	expr = "StartNet/WholeNetwork/line";
+			attribute<point_rd> first_point: 	expr = "first_node(line)";
+			attribute<point_rd> last_point:  	expr = "last_node(line)";
+			attribute<float32>  Seconds:		expr = "float32(StartNet/WholeNetwork/Seconds)";				 
+			attribute<float32>  ModelSeconds:	expr = "IsConnector ? float32(1) : Seconds";
+			
+			unit<uint32> PointSet: expr = "union_unit(YearNet, YearNet)" {attribute<point_rd> Points: expr = "union_data(., first_point, last_point)";}
+			
+			unit<uint32> NodeSet: expr = "unique(PointSet/Points)";
+			
+			attribute<NodeSet> F1: expr = "rlookup(first_point, NodeSet/Values)";
+			attribute<NodeSet> F2: expr = "rlookup(last_point, NodeSet/Values)";
+			attribute<NodeSet> ZoneNode (Zones): expr = "rlookup(Zones/centroid, NodeSet/Values)";
+		}
+		
+		unit<uint32> RoadNet: expr = "Roads/Road_data"
+		{
+			attribute<float32> Seconds_Walking: expr = "Length / value(LinkTypes/speeds[LinkTypes/V/Walking], float32)";
+			attribute<float32> Seconds_Train: 	expr = "Length / value(LinkTypes/speeds[LinkTypes/V/Private_trunk], float32)";
+			attribute<point_rd> first_point: 	expr = "first_point(line)";
+			attribute<point_rd> last_point:  	expr = "last_point(line)";
+			
+			unit<uint32> PointSet: expr = "union_unit(RoadNet, RoadNet)" {attribute<point_rd> Points: expr = "union_data(., first_point, last_point)";}
+			
+			unit<uint32> NodeSet: expr = "unique(PointSet/Points)";
+			
+			attribute<NodeSet> F1: expr = "rlookup(first_point, NodeSet/Values)";
+			attribute<NodeSet> F2: expr = "rlookup(last_point, NodeSet/Values)";
+			attribute<NodeSet> ZoneNode (Zones): expr = "rlookup(Zones/centroid, NodeSet/Values)";
+		}
+		
+		attribute<float32> Population 			(Zones): expr = "float32(popZones)";
+		attribute<float32> PKBi					(Zones): expr = "sum(ODMatrix/PKBij, ODMatrix/FromZone)";
+		attribute<float32> PK0i					(Zones): expr = "sum(ODMatrix/PK0ij, ODMatrix/FromZone)";
+		attribute<float32> PK1i					(Zones): expr = "sum(ODMatrix/PK1ij, ODMatrix/FromZone)";
+		attribute<float32> Saturationi			(Zones): expr = "max_elem(((PK1i - PKBi) - (PK0i - PKBi)) / (PK1i - PKBi), float32(0))";
+		
+		unit<uint32> ODMatrix: 
+			expr = "dijkstra_m('bidirectional;startPoint(Node_rel);endPoint(Node_rel);od:impedance,OrgZone_rel,DstZone_rel'
+				, YearNet/ModelSeconds
+				, YearNet/F1
+				, Yearnet/F2
+				, Yearnet/ZoneNode
+				, Yearnet/ZoneNode)"
+		{
+			attribute<Zones> 	FromZone:     				expr = "OrgZone_rel";
+			//attribute<Zones> 	FromZone:     				expr = "(id(.) / #Zones)[Zones]";
+   			attribute<Zones> 	ToZone: 					expr = "DstZone_rel";
+   			//attribute<Zones> 	ToZone: 					expr = "mod(id(.), #Zones)[Zones]";
+   			attribute<CostMatrix> 	Cm_id: 					expr = "rlookup(From_To, CostMatrix/From_To)";
+			attribute<LengthMatrix> Lm_id:					expr = "rlookup(From_To, LengthMatrix/From_To)";
+   			attribute<RoadsMatrix> 	Rm_id:					expr = "rlookup(From_To, RoadsMatrix/From_To)";
+   			attribute<upoint>	From_To:					expr = "point(FromZone, ToZone, upoint)";
+   			attribute<float32> 	from_pop:					expr = "Population[FromZone]";
+   			attribute<float32>  to_pop:						expr = "Population[ToZone]";
+   			attribute<float32>  From_market:				expr = "Saturationi[FromZone] * from_pop";
+   			attribute<float32>  To_market:					expr = "Saturationi[ToZone] * to_pop";
+   			attribute<float32>	Costs:						expr = "CostMatrix/defcosts[Cm_id] + (float32(0.5) * (LengthMatrix/defcosts[Lm_id] - CostMatrix/defcosts[Cm_id])) + CostsPerSoilType/const";
+   			attribute<float32>  GeoDist: 					expr = "dist(Zones/Centroid[FromZone], Zones/Centroid[ToZone])";
+   			attribute<float32>  WalkNetworkDist:			expr = "Bij * float32(LinkTypes/speeds[LinkTypes/V/Walking])";
+   			attribute<float32>	Bij:						expr = "RoadsMatrix/WalkTime[Rm_id]";
+   			attribute<float32>  c0ij:						expr = "Impedance";
+   			attribute<float32>  c1ij:						expr = "RoadsMatrix/TrainTime[Rm_id]";
+   			attribute<float32>  TijB:						expr = "FlowsBij/Matrix/Tij + FlowsBij/Matrix/Tji";
+   			attribute<float32> 	Tij0:						expr = "FlowsF0ij/Matrix/Tij + FlowsF0ij/Matrix/Tji";
+   			attribute<float32> 	Tij1:						expr = "FlowsF1ij/Matrix/Tij + FlowsF1ij/Matrix/Tji";
+   			attribute<float32>  PKBij:						expr = "TijB * WalkNetworkDist";
+   			attribute<float32> 	PK0ij:						expr = "Tij0 * WalkNetworkDist";
+   			attribute<float32> 	PK1ij:						expr = "Tij1 * WalkNetworkDist";
+			parameter<float32>  t0:							expr = "sum(Tij0 * c0ij)";
+			attribute<float32>  t1:							expr = "((Tij0 * c0ij) - (Tij0 * c1ij)) / float32(60)";
+			attribute<float32>  t2:							expr = "((Tij1 - Tij0) * c1ij) / float32(60)";
+			attribute<float32>  soc_ben:					expr = "t1 + (float32(0.5) * t2)";
+			//attribute<float32>  soc_ben_pc:					expr = "tot_soc_benefits";
+			
+   			
+   			container FlowsBij: expr = "getFlows_ij(ODMatrix, Bij, from_pop, to_pop)";
+   			container FlowsF0ij:expr = "getFlows_ij(ODMatrix, c0ij, from_pop, to_pop)";
+   			container FlowsF1ij:expr = "getFlows1ij(ODMatrix, c1ij, c0ij, from_pop, to_pop)";
+   			
+   			attribute<float32>  RelImpedanceImprovement:	expr = "c0ij / c1ij";
+			attribute<uint32> 	Random:						expr = "rnd_permutation(0, .)";
+			attribute<bool>		realInvestment:				expr = "RunSettings/Scenarios/modelRealInvestments[RunSettings/ScenarioId] ? FromZone = Alternatives/realInvestment/connectedZones/fromZone && ToZone = Alternatives/realInvestment/connectedZones/toZone : False";
+   			attribute<bool>		OKImpedanceImprovement:		expr = "RelImpedanceImprovement >= minTimeImprovement";
+   			attribute<bool>		Unique:						expr = "FromZone < ToZone";
+   			attribute<bool>		MeetsCriteria:				expr = "OKImpedanceImprovement && Unique && !realInvestment";
+			attribute<bool>		ExportSel:					expr = "Random < 10000 || realInvestment";
+		}
+		
+		unit<uint32> LengthMatrix: expr = 
+		"dijkstra_m('bidirectional;startPoint(Node_rel);endPoint(Node_rel);alternative(link_imp):alt_imp;od:impedance'
+				, constructionLength
+				, BaseNetwork/F1
+				, BaseNetwork/F2
+				, BaseNetwork/ZoneNode
+				, BaseNetwork/ZoneNode
+				, ConstructionCosts
+			)"
+		{
+			attribute<Zones> 	FromZone:     				expr = "(id(.) / #Zones)[Zones]";
+   			attribute<Zones> 	ToZone: 					expr = "mod(id(.), #Zones)[Zones]";
+   			attribute<upoint>	From_To:					expr = "point(FromZone, ToZone, upoint)";
+   			attribute<float32>  defcosts:					expr = "alt_imp - (float32(2) * params/municonnection_costs)";
+		}
+		unit<uint32> CostMatrix: expr = 
+		"dijkstra_m('bidirectional;startPoint(Node_rel);endPoint(Node_rel);alternative(link_imp):alt_imp;od:impedance'
+				, constructionCosts
+				, BaseNetwork/F1
+				, BaseNetwork/F2
+				, BaseNetwork/ZoneNode
+				, BaseNetwork/ZoneNode
+				, ConstructionLength
+			)"
+		{
+			attribute<Zones> 	FromZone:     				expr = "(id(.) / #Zones)[Zones]";
+   			attribute<Zones> 	ToZone: 					expr = "mod(id(.), #Zones)[Zones]";
+   			attribute<upoint>	From_To:					expr = "point(FromZone, ToZone, upoint)";
+   			attribute<float32>  defcosts:					expr = "Impedance - (float32(2) * params/municonnection_costs)";
+		}
+		unit<uint32> RoadsMatrix: 
+			expr = "dijkstra_m('bidirectional;startPoint(Node_rel);endPoint(Node_rel);alternative(link_imp):alt_imp;od:impedance,OrgZone_rel,DstZone_rel'
+				, RoadNet/Seconds_Walking
+				, RoadNet/F1
+				, RoadNet/F2
+				, RoadNet/ZoneNode
+				, RoadNet/ZoneNode
+				, RoadNet/Seconds_Train)"
+		{	
+			attribute<Zones> 	FromZone:     				expr = "OrgZone_rel";
+   			attribute<Zones> 	ToZone: 					expr = "DstZone_rel";
+   			attribute<upoint>	From_To:					expr = "point(FromZone, ToZone, upoint)";
+   			attribute<float32>  WalkTime:					expr = "Impedance";
+			attribute<float32>  TrainTime:					expr = "alt_imp + value(params/WaitingSeconds + params/WaitingSeconds, float32)";
+   		}
+	}
+	
+	Container getFlows_ij: IsTemplate = "True" 
+	{
+		unit<uint32> 		inMatrix;
+		
+		attribute<float32> 	inImpedance (inMatrix);
+		attribute<float32>  fromPop		(inMatrix);
+		attribute<float32>  toPop		(inMatrix);
+		
+		unit<uint32> Matrix: expr = "inMatrix"
+		{
+			attribute<float32>			Emission:	expr = "fromPop";
+			attribute<float32>			Attraction: expr = "toPop";
+			attribute<float32>			Fij:		expr = "iif(fromZone <> toZone || params/InternalTrips, inImpedance ^ params/b1, float32(0))";
+			attribute<float32>			Ai (Zones):	expr = "float32(1) / sum(Attraction * Fij, fromZone)";
+			attribute<float32>			Tij:		expr = "(Ai[fromZone] ^(float32(1) - params/Alonso_a)) * Emission * Attraction * Fij";
+			attribute<float32>			Tji:		expr = "(Ai[toZone] ^(float32(1) - params/Alonso_a)) * Emission * Attraction * Fij";
+		}
+	}
+	Container getFlows1ij: IsTemplate = "True" 
+	{
+		unit<uint32> 		inMatrix;
+		
+		attribute<float32> 	inImpedance 	(inMatrix);
+		attribute<float32>  currImpedance	(inMatrix);
+		attribute<float32>  fromPop			(inMatrix);
+		attribute<float32>  toPop			(inMatrix);
+		
+		unit<uint32> Matrix: expr = "inMatrix"
+		{
+			attribute<float32>			Emission:	expr = "fromPop";
+			attribute<float32>			Attraction: expr = "toPop";
+			attribute<float32>			F0ij:		expr = "iif(fromZone <> toZone || params/InternalTrips, currImpedance ^ params/b1, float32(0))";
+			attribute<float32>			F1ij:		expr = "iif(fromZone <> toZone || params/InternalTrips, inImpedance ^ params/b1, float32(0))";
+			attribute<float32>			Aid: 	 	expr = "((Attraction * F1ij) - (Attraction * F0ij))";
+			attribute<float32>			Ai0(Zones): expr = "sum(Attraction * F0ij, fromZone)";
+			attribute<float32>			Tij:		expr = "((float32(1) / (Ai0[fromZone] + Aid)) ^ (float32(1) - params/Alonso_a)) * Emission * Attraction * F1ij";
+			attribute<float32>			Tji:		expr = "((float32(1) / (Ai0[toZone] + Aid)) ^ (float32(1) - params/Alonso_a)) * Emission * Attraction * F1ij";
+		}
+	}
+}

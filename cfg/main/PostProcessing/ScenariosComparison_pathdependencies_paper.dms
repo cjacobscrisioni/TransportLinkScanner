@@ -1,0 +1,180 @@
+Container ScenariosComparison_pathdependencies_paper {
+
+	unit<uint32> ScenariosToCompare: expr = "subset(RunSettings/Scenarios/PathDependencyPaperScenario)" {
+		attribute<string> Name: 		expr = "RunSettings/Scenarios/Label[Nr_OrgEntity]";
+		attribute<uint32> RandomSeed: 	expr = "RunSettings/Scenarios/RandomBase[Nr_OrgEntity]";
+		attribute<uint32> RankSel: 		expr = "uint32(RunSettings/Scenarios/rankselord[Nr_OrgEntity])";
+		attribute<string> popmodel: 	expr = "RunSettings/Scenarios/popfield_eval[Nr_OrgEntity]";
+		attribute<bool>	  ModelledPop:	expr = "RunSettings/Scenarios/ModelledPopulation[Nr_OrgEntity]";
+		parameter<string> resultRef: 	expr = "AsItemList('GetScenarioResults/'+ScenariosToCompare/Name+'/PerMoment/XXXX')";
+	}
+	unit<uint32> EndogenousPopScenarios: expr = "subset(ScenariosToCompare/ModelledPop)" {
+		attribute<string> Name: 		expr = "ScenariosToCompare/Name[Nr_OrgEntity]";
+		attribute<bool>   md: 			expr = "IsDefined(strpos(Name, 'md'))";
+		attribute<bool>   sd: 			expr = "IsDefined(strpos(Name, 'sd'))";
+		attribute<bool>   cd: 			expr = "IsDefined(strpos(Name, 'cd'))";
+		attribute<bool>   id: 			expr = "IsDefined(strpos(Name, 'id'))";
+	}
+	unit<uint32> SD_Scenarios: expr = "subset(EndogenousPopScenarios/sd)" {attribute<string> Name: 		expr = "EndogenousPopScenarios/Name[Nr_OrgEntity]";}
+	unit<uint32> CD_Scenarios: expr = "subset(EndogenousPopScenarios/cd)" {attribute<string> Name: 		expr = "EndogenousPopScenarios/Name[Nr_OrgEntity]";}
+	unit<uint32> ID_Scenarios: expr = "subset(EndogenousPopScenarios/id)" {attribute<string> Name: 		expr = "EndogenousPopScenarios/Name[Nr_OrgEntity]";}
+	unit<uint32> MD_Scenarios: expr = "subset(EndogenousPopScenarios/md)" {attribute<string> Name: 		expr = "EndogenousPopScenarios/Name[Nr_OrgEntity]";}
+	unit<uint32> MeasuringYears: expr = "range(uint32, 0, 1+((1929 - 1839)/10))" {
+		attribute<uint32> Year: 		expr = "1839 + (id(.) * 10)";
+		attribute<string> ResultRef: 	expr = "replace(ScenariosToCompare/resultRef, 'XXXX', 'y'+string(Year))";
+		attribute<string> UnionExec:    expr = "'union_data(LogitModelData, '+ResultRef+')'";
+	}
+	
+	unit<uint32> Zones: expr = "PopulationModels/Population" {
+		attribute<point_rd> lb: 		Expr = "lower_bound(vlak)";
+		attribute<point_rd> ub:			Expr = "upper_bound(vlak)";	
+	}
+	
+	
+	container AggregateResults: expr = "for_each_nedv('y'+string(MeasuringYears/Year), 'add('+MeasuringYears/ResultRef+') / float32(#ScenariosToCompare)', Zones, float32)" {
+		attribute<string>	Name 	(Zones): expr = "Zones/Mun";
+		attribute<float32> 	Pop 	(Zones): expr = "float32(Zones/Pop1839)";
+		attribute<float32> 	Sqkm	(Zones): expr = "Zones/Sqkm";
+		attribute<float32>	CT		(Zones): expr = "PopulationModels/zones/CTi_1829";
+	}
+	unit<uint32> LogitModelData: expr = "combine(ScenariosToCompare, zones)" {
+		attribute<string> Name: 	expr = "Zones/Mun[nr_2]";
+		attribute<string> Scen: 	expr = "ScenariosToCompare/Name[nr_1]";
+		attribute<uint32> Rdse:		expr = "ScenariosToCompare/RandomSeed[nr_1]";
+		attribute<uint32> Rsel:		expr = "ScenariosToCompare/RankSel[nr_1]";
+		attribute<string> Pmod:		expr = "ScenariosToCompare/popmodel[nr_1]";
+		attribute<float32>Pop: 		expr = "float32(Zones/Pop1839[nr_2])";
+		attribute<float32>Sqkm:		expr = "Zones/Sqkm[nr_2]";
+		attribute<float32>CT:		expr = "PopulationModels/zones/CTi_1829[nr_2]";
+		
+		container Connections: expr = "for_each_nedv('c'+string(MeasuringYears/Year), MeasuringYears/UnionExec, LogitModelData, float32)";
+	}
+	
+	
+	Container GetScenarioResults: expr = "for_each_ne(ScenariosToCompare/Name, 'GetDefiniteResults('+string(id(ScenariosToCompare))+')')";
+	Container GetPopulationResults: expr = "for_each_ne(EndogenousPopScenarios/Name, 'GetPopulationShp('+quote(EndogenousPopScenarios/Name)+', bool('+string(IsDefined(strpos(lowercase(EndogenousPopScenarios/Name), 'sd')))+'))')" {
+		parameter<string> Exec: 	expr = "'union_data(AllPopResults, '+AsItemList('float32('+EndogenousPopScenarios/Name+'/Zones/XXXX)')+')'";
+		parameter<string> sdExec: 	expr = "'union_data(sdPopResults, '+AsItemList('float32('+SD_Scenarios/Name+'/Zones/XXXX)')+')'";
+		parameter<string> cdExec: 	expr = "'union_data(cdPopResults, '+AsItemList('float32('+CD_Scenarios/Name+'/Zones/XXXX)')+')'";
+		parameter<string> idExec: 	expr = "'union_data(idPopResults, '+AsItemList('float32('+ID_Scenarios/Name+'/Zones/XXXX)')+')'";
+		parameter<string> mdExec: 	expr = "'union_data(mdPopResults, '+AsItemList('float32('+MD_Scenarios/Name+'/Zones/XXXX)')+')'";
+		attribute<string> ResultRef (MeasuringYears): 	expr = "replace(Exec, 'XXXX', 'Pop'+string(MeasuringYears/Year))";
+		attribute<string> sdResultRef (MeasuringYears): 	expr = "replace(sdExec, 'XXXX', 'Pop'+string(MeasuringYears/Year))";
+		attribute<string> cdResultRef (MeasuringYears): 	expr = "replace(cdExec, 'XXXX', 'Pop'+string(MeasuringYears/Year))";
+		attribute<string> idResultRef (MeasuringYears): 	expr = "replace(idExec, 'XXXX', 'Pop'+string(MeasuringYears/Year))";
+		attribute<string> mdResultRef (MeasuringYears): 	expr = "replace(mdExec, 'XXXX', 'Pop'+string(MeasuringYears/Year))";
+		unit<uint32> AllPopResults: expr = "= 'union_unit('+AsItemList(EndogenousPopScenarios/Name+'/Zones')+')'" {
+			attribute<uint32> ZoneId: expr = "= 'union_data(., '+AsItemList(EndogenousPopScenarios/Name+'/Zones/ZoneId')+')'";
+			attribute<string> Scenario: expr = "= 'union_data(., '+AsItemList('const('+quote(EndogenousPopScenarios/Name)+','+EndogenousPopScenarios/Name+'/Zones, string)')+')'";
+			attribute<float32> exp_1919: expr = "= 'union_data(., '+AsItemList(EndogenousPopScenarios/Name+'/Zones/exp_1919')+')'";
+			attribute<float32> exp_1929: expr = "= 'union_data(., '+AsItemList(EndogenousPopScenarios/Name+'/Zones/exp_1929')+')'";
+			container Years: expr = "for_each_nedv('Pop'+string(MeasuringYears/Year), ResultRef, AllPopResults, float32)";
+		}
+		unit<uint32> sdPopResults: expr = "= 'union_unit('+AsItemList(SD_Scenarios/Name+'/Zones')+')'" {
+			attribute<uint32> ZoneId: expr = "= 'union_data(., '+AsItemList(SD_Scenarios/Name+'/Zones/ZoneId')+')'";
+			attribute<string> Scenario: expr = "= 'union_data(., '+AsItemList('const('+quote(SD_Scenarios/Name)+','+SD_Scenarios/Name+'/Zones, string)')+')'";
+			attribute<float32> exp_1919: expr = "= 'union_data(., '+AsItemList(SD_Scenarios/Name+'/Zones/exp_1919')+')'";
+			attribute<float32> exp_1929: expr = "= 'union_data(., '+AsItemList(SD_Scenarios/Name+'/Zones/exp_1929')+')'";
+			container Years: expr = "for_each_nedv('Pop'+string(MeasuringYears/Year), sdResultRef, sdPopResults, float32)";
+		}
+		unit<uint32> cdPopResults: expr = "= 'union_unit('+AsItemList(CD_Scenarios/Name+'/Zones')+')'" {
+			attribute<uint32> ZoneId: expr = "= 'union_data(., '+AsItemList(CD_Scenarios/Name+'/Zones/ZoneId')+')'";
+			attribute<string> Scenario: expr = "= 'union_data(., '+AsItemList('const('+quote(CD_Scenarios/Name)+','+CD_Scenarios/Name+'/Zones, string)')+')'";
+			attribute<float32> exp_1919: expr = "= 'union_data(., '+AsItemList(CD_Scenarios/Name+'/Zones/exp_1919')+')'";
+			attribute<float32> exp_1929: expr = "= 'union_data(., '+AsItemList(CD_Scenarios/Name+'/Zones/exp_1929')+')'";
+			container Years: expr = "for_each_nedv('Pop'+string(MeasuringYears/Year), cdResultRef, cdPopResults, float32)";
+		}
+		unit<uint32> idPopResults: expr = "= 'union_unit('+AsItemList(ID_Scenarios/Name+'/Zones')+')'" {
+			attribute<uint32> ZoneId: expr = "= 'union_data(., '+AsItemList(ID_Scenarios/Name+'/Zones/ZoneId')+')'";
+			attribute<string> Scenario: expr = "= 'union_data(., '+AsItemList('const('+quote(ID_Scenarios/Name)+','+ID_Scenarios/Name+'/Zones, string)')+')'";
+			attribute<float32> exp_1919: expr = "= 'union_data(., '+AsItemList(ID_Scenarios/Name+'/Zones/exp_1919')+')'";
+			attribute<float32> exp_1929: expr = "= 'union_data(., '+AsItemList(ID_Scenarios/Name+'/Zones/exp_1929')+')'";
+			container Years: expr = "for_each_nedv('Pop'+string(MeasuringYears/Year), idResultRef, idPopResults, float32)";
+		}
+		unit<uint32> mdPopResults: expr = "= 'union_unit('+AsItemList(MD_Scenarios/Name+'/Zones')+')'" {
+			attribute<uint32> ZoneId: expr = "= 'union_data(., '+AsItemList(MD_Scenarios/Name+'/Zones/ZoneId')+')'";
+			attribute<string> Scenario: expr = "= 'union_data(., '+AsItemList('const('+quote(MD_Scenarios/Name)+','+MD_Scenarios/Name+'/Zones, string)')+')'";
+			attribute<float32> exp_1919: expr = "= 'union_data(., '+AsItemList(MD_Scenarios/Name+'/Zones/exp_1919')+')'";
+			attribute<float32> exp_1929: expr = "= 'union_data(., '+AsItemList(MD_Scenarios/Name+'/Zones/exp_1929')+')'";
+			container Years: expr = "for_each_nedv('Pop'+string(MeasuringYears/Year), mdResultRef, mdPopResults, float32)";
+		}
+		unit<uint32> Aggregate_Sd: expr = "SourceData/SimulatedZones" {
+			attribute<float32> 	exp_1919: 	expr = "rjoin(id, sd_no_rails/Zones/ZoneId, sd_no_rails/Zones/exp_1919)";
+			attribute<float32>  mean_1919: 	expr = "mean(sdPopResults/Years/Pop1919, sdPopResults/ZoneId[SourceData/SimulatedZones])";
+			attribute<float32> 	sd_1919:	expr = "sd(sdPopResults/Years/Pop1919, sdPopResults/ZoneId[SourceData/SimulatedZones])";
+			attribute<float32>	rel_sd:		expr = "sd_1919 / mean_1919";
+			attribute<float32>  rel_exp_sd:	expr = "sd_1919 / exp_1919";
+		}
+		unit<uint32> Aggregate_cd: expr = "SourceData/SimulatedZones" {
+			attribute<float32> 	exp_1919: 	expr = "rjoin(id, cd_no_rails/Zones/ZoneId, cd_no_rails/Zones/exp_1919)";
+			attribute<float32>  mean_1919: 	expr = "mean(cdPopResults/Years/Pop1919, cdPopResults/ZoneId[SourceData/SimulatedZones])";
+			attribute<float32> 	sd_1919:	expr = "sd(cdPopResults/Years/Pop1919, cdPopResults/ZoneId[SourceData/SimulatedZones])";
+			attribute<float32>	rel_sd:		expr = "sd_1919 / mean_1919";
+			attribute<float32>  rel_exp_sd:	expr = "sd_1919 / exp_1919";
+		}
+		unit<uint32> Aggregate_id: expr = "SourceData/SimulatedZones" {
+			attribute<float32> 	exp_1919: 	expr = "rjoin(id, id_no_rails/Zones/ZoneId, id_no_rails/Zones/exp_1919)";
+			attribute<float32>  mean_1919: 	expr = "mean(idPopResults/Years/Pop1919, idPopResults/ZoneId[SourceData/SimulatedZones])";
+			attribute<float32> 	sd_1919:	expr = "sd(idPopResults/Years/Pop1919, idPopResults/ZoneId[SourceData/SimulatedZones])";
+			attribute<float32>	rel_sd:		expr = "sd_1919 / mean_1919";
+			attribute<float32>  rel_exp_sd:	expr = "sd_1919 / exp_1919";
+		}
+		unit<uint32> Aggregate_Md: expr = "SourceData/ObservedPopulation" {
+			attribute<float32> 	exp_1919: 	expr = "rjoin(id, md_no_rails/Zones/ZoneId, md_no_rails/Zones/exp_1919)";
+			attribute<float32>  mean_1919: 	expr = "mean(mdPopResults/Years/Pop1919, mdPopResults/ZoneId[SourceData/ObservedPopulation])";
+			attribute<float32> 	sd_1919:	expr = "sd(mdPopResults/Years/Pop1919, mdPopResults/ZoneId[SourceData/ObservedPopulation])";
+			attribute<float32>	rel_sd:		expr = "sd_1919 / mean_1919";
+			attribute<float32>  rel_exp_sd:	expr = "sd_1919 / exp_1919";
+		}
+		container sd_no_rails: expr = "GetPopulationShp('sd_no_rails', True)";
+		container cd_no_rails: expr = "GetPopulationShp('cd_no_rails', True)";
+		container id_no_rails: expr = "GetPopulationShp('id_no_rails', True)";
+		container md_no_rails: expr = "GetPopulationShp('md_no_rails')";
+	}
+	
+	Template GetDefiniteResults {
+		parameter<ScenariosToCompare> inScenario;
+		
+		parameter<string> Path: expr = "'%ProjDir%/runs/'+ ScenariosToCompare/Name[inScenario] + '/decade_net/modellednet_'";
+		parameter<InvestmentSearchRange> lastInvestment: expr = "max(uint32(InvestmentSearchRange/Exists) * id(InvestmentSearchRange))[InvestmentSearchRange]";
+		parameter<string>				 lastInvestmentFileName: expr = "InvestmentSearchRange/FileName[lastInvestment]";
+		
+		unit<uint32> InvestmentSearchRange: NrOfRows = 250 {
+			attribute<string> 	FileName: expr = "Path + string(id(.)) + '.shp'";
+			attribute<bool>  	Exists:   expr = "= 'union_data(., '+AsItemList('DefiniteInvestmentSearch/inv_'+string(id(.)))+')'";
+		}
+		
+		container DefiniteInvestmentSearch: expr = "for_each_nedv('inv_'+string(id(InvestmentSearchRange)), "
+			"'!(ExistingFile('+quote('x:/x')+', '+quote(InvestmentSearchRange/FileName)+') = '+quote('x:/x')+')',void,bool)";
+		
+		unit<uint32> LoadResultShape: StorageName = "= lastInvestmentFileName", StorageReadOnly = "True", StorageType = "gdal.vect" {
+			attribute<Units/point_rd> Geometry (arc);
+			
+			attribute<Units/point_rd> firstPoint: expr = "first_point(Geometry)";
+			attribute<Units/point_rd> lastPoint: expr = "last_point(Geometry)";
+			
+			unit<uint32> PointSet: expr = "union_unit(LoadResultShape, LoadResultShape)", DialogData = "Points", DialogType = "map" {
+				attribute<Units/point_rd> Points: 	expr = "union_data(., firstPoint, lastPoint)";
+				attribute<uint32>		  Year:		expr = "uint32(union_data(., LoadResultShape/Year, LoadResultShape/Year))";
+				attribute<Zones>		  ZoneId:	expr = "point_in_polygon(Points, Zones/vlak)";
+			}
+		}
+		attribute<uint32> FirstConn (Zones): expr = "min_elem(min(LoadResultShape/PointSet/Year, LoadResultShape/PointSet/ZoneId), 2030)";
+		
+		container PerMoment: expr = "for_each_nedv('y'+string(MeasuringYears/Year), 'float32(FirstConn <= '+string(MeasuringYears/Year)+')', Zones, float32)";
+	
+	}
+	
+	Template GetPopulationShp {
+		parameter<string> ScenarioName;
+		parameter<bool>   SimulatedZones: expr = "False";
+		
+		unit<uint32> Zones: StorageName = "= '%ProjDir%/runs/'+ ScenarioName + '/population/modelled.shp'", StorageReadOnly = "True", StorageType = "gdal.vect" {
+			attribute<Units/point_rd> Geometry (poly);
+			attribute<Zones> 	ZoneId: expr = "point_in_polygon(centroid_or_mid(Geometry), Zones/Geometry)";
+			attribute<float32>  exp_1919: expr = "SimulatedZones ? rjoin(ZoneId, sd_no_rails/Zones/ZoneId, float32(sd_no_rails/Zones/pop1919)) : rjoin(ZoneId, md_no_rails/Zones/ZoneId, float32(md_no_rails/Zones/pop1919))";
+			attribute<float32>	exp_1929: expr = "SimulatedZones ? rjoin(ZoneId, sd_no_rails/Zones/ZoneId, float32(sd_no_rails/Zones/pop1929)) : rjoin(ZoneId, md_no_rails/Zones/ZoneId, float32(md_no_rails/Zones/pop1929))";
+		}
+	}
+	
+}

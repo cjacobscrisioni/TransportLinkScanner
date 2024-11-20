@@ -1,0 +1,54 @@
+Container Economy 
+{
+	parameter<string> FolderName: expr = "'Reference'";
+
+	unit<uint32> Years: expr = "range(uint32, 1816, 2018)" {attribute<.> year: expr = "id(.)";}
+	
+	parameter<uint32> 	CurrYear: 	expr = "uint32(RunSettings/inYear)";
+	parameter<Years>	ThisYear: 	expr = "rlookup(CurrYear, Years/year)";
+	parameter<float32> 	vtt:	 	expr = "vtt_values/inFile/vtt[ThisYear]";
+	parameter<float32> 	rf:	 		expr = "state_interest/inFile/state_interest[ThisYear]";
+	parameter<float32>  rp:			expr = "max_elem(float32(0.025), float32(0.20)*(float32(1) - ((float32(ThisYear) - float32(1869)) / float32(30))))"; // function governing risk penalty
+	parameter<float32>  r:			expr = "(rf / float32(100)) + rp";
+	parameter<float32>  geo_seq50:  expr = "(float32(1)-(float32(1)/(float32(1)+r))^float32(51)) / (float32(1)-(float32(1)/(float32(1)+r)))";
+	
+	//gen geo_seq50 = (1-(1/(1+r))^51) / (1-(1/(1+r)))
+	
+	Container vtt_values: 		expr = "loadDataFile_csv('%ProjDir%/cfg/main/SourceData/'+FolderName+'/vtt_values', Years, 'Year')";
+	Container state_interest: 	expr = "loadDataFile_csv('%ProjDir%/cfg/main/SourceData/'+FolderName+'/state_interest', Years, 'Year')";
+	
+	Template loadDataFile_csv {
+		parameter<string> 	inPath;
+		unit<uint32> 	 	TargetUnit;
+		parameter<string> 	ZoneIdField;
+		parameter<string> 	FieldSeparator := ',';
+		
+		unit<uint32> 		Domain: expr = "range(uint32, 0, #TargetUnit * 2)";
+		
+		parameter<string> FileData:  StorageType = "str",  StorageName = "=inPath+'.csv'";
+		parameter<string> HeaderLine := readLines(FileData, void, 0);
+		parameter<bool>   HeaderOK   := 
+			  regex_match(
+				  HeaderLine
+				 ,'\"[^\"]*+\"(;\"[^\"]*+\")*+'
+			  );
+				
+		unit<uint32> Field:= Range(UInt32, 0, strcount(HeaderLine, FieldSeparator)+1)
+		{attribute<string> Name := ReadArray(HeaderLine, Field, String, 0);}
+				
+		attribute<string> BodyLines(Domain) := readLines(FileData, Domain, HeaderLine/ReadPos); //,  IntegrityCheck = "HeaderOK";
+		attribute<bool> LinesAreSignedIntegerStringOrEmpy (Domain) := 
+			  regex_match(BodyLines,'(-?+[0-9]++|\"[^\"]*+\")?+(;(-?+[0-9]++|\"[^\"]*+\")?+)*+');
+				
+		container Data := for_each_nedv(Field/Name,'ReadElems(BodyLines,string,'+ MakeDefined(Field/Name[ID(Field)-1]+'/ReadPos','const(0,Domain)')+')',Domain,string);
+		
+		attribute<Domain> DomainRefField (TargetUnit): expr = "= 'rlookup(trim(UpperCase(string(TargetUnit/'+ZoneIdField+'))), trim(UpperCase(string(Data/'+ ZoneIdField +'))))'";
+		
+		container inFile: expr = "for_each_nedv(Field/Name, 'float32(Data/'+Field/Name+'[DomainRefField])',TargetUnit,float32)";
+
+		
+	}
+	
+	
+
+}

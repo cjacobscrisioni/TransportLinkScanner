@@ -1,0 +1,481 @@
+Container AdditionFlowSchemes: using = "getInbetweens;PopulationModels;params;"
+{	
+	container getAddition: IsTemplate = "True"
+	{
+		parameter<uint32> AdditionNr;
+		parameter<uint32> PartNr;
+		parameter<uint32> OperatorId;
+		
+		parameter<string> RouteName: 	expr = "'Additional line ' + string(AdditionNr) + ' between ' + string(params/Year) + ' and ' + string(params/Year + params/Period)";
+		
+		unit<uint32> prospectAddition: expr = "subset(FindParts/PartId = PartNr && FindParts/OperatorId = OperatorId)", 
+			DialogData = "line", 
+			DialogType = "Map", 
+			Descr = "= 'Prospective additional line'"
+		{
+			attribute<point_rd> line (arc): 	expr = "FindParts/Uniondata[nr_OrgEntity]", Label = "= RouteName";	
+			attribute<float32>	connectorCost:	expr = "FindParts/connectorCost[nr_OrgEntity]";
+			attribute<m>		length: 		expr = "FindParts/length[nr_OrgEntity]";
+			attribute<s>		Seconds: 		expr = "FindParts/Seconds[nr_OrgEntity]";
+			attribute<bool>		IsRail:			expr = "FindParts/IsRail[nr_OrgEntity]";
+			attribute<bool> 	IsBridge:		expr = "FindParts/IsBridge[nr_OrgEntity]";
+			attribute<uint32>   fromStation:	expr = "FindParts/fromStation[nr_OrgEntity]";
+			attribute<uint32>  	toStation:		expr = "FindParts/toStation[nr_OrgEntity]";
+			attribute<uint32>	OperatorId:		expr = "FindParts/OperatorId[nr_OrgEntity]";
+			attribute<point_rd> first_point: 	expr = "first_point(line)"; 
+			attribute<point_rd> last_point:  	expr = "last_point(line)";
+			unit<uint32> PointSet: 	expr = "union_unit(prospectAddition, prospectAddition)" {attribute<point_rd> points: expr = "union_data(., first_point, last_point)";}
+			unit<uint32> NodeSet: 	expr = "unique(PointSet/points)" {attribute<point_rd> Values;}
+			
+			unit<uint32> doubledForStations:	expr = "union_unit(prospectAddition, prospectAddition)"
+			{
+				attribute<uint32> Stations:		expr = "union_data(doubledForStations, fromStation, toStation)";	
+			}
+			unit<uint32> prospectStations:		expr = "unique(doubledForStations/Stations)"
+			{
+				attribute<uint32> 	Values;
+				attribute<uint32> 	StationId:	
+					expr = "iif(Railroads/Stations/RailStations/Open_Year[Values] > params/Year"
+					" && Railroads/Stations/RailStations/Open_Year[Values] <= (params/Year + params/Period) "
+					" && Railroads/Stations/RailStations/Close_Year[Values] > (params/Year + params/Period),"
+					" Values, uint32(4294967295))";
+			}
+			
+			container OperatorConnection: expr = "for_each_nedv(id(SourceData/Railroads/Railroads/Railroad_data/Operators) > 0 ? SourceData/Railroads/Railroads/Railroad_data/Operators/Label : '', "
+				"'any(!IsNull(rlookup(NodeSet/Values, BaseFlows/BaseNetwork/nodes_p_operator/'+ SourceData/Railroads/Railroads/Railroad_data/Operators/Label +'/OperatorNet/NodeSet/Values)))', void, bool)";
+		}
+
+		attribute<bool>	IsOnAddition_from 	(Railroads/Stations/StationConnectLinks): 
+			expr = "!IsNull(rlookup(Railroads/Stations/StationConnectLinks/toStation, prospectAddition/fromStation))";
+		attribute<bool>	IsOnAddition_to 	(Railroads/Stations/StationConnectLinks): 
+			expr = "!IsNull(rlookup(Railroads/Stations/StationConnectLinks/toStation, prospectAddition/toStation))";
+		
+		unit<uint32> StationConnectors: expr = "subset((IsOnAddition_from || IsOnAddition_to)"
+				" && Railroads/Stations/StationConnectLinks/Open_Year > params/Year"
+				" && Railroads/Stations/StationConnectLinks/Open_Year <= (params/Year + params/Period) "
+				" && Railroads/Stations/StationConnectLinks/Close_Year > (params/Year + params/Period)) ",
+			DialogData = "line", 
+			DialogType = "Map", 
+			Descr = "= 'station to centroid connecting line'"
+		{
+			attribute<point_rd> line (arc): 	expr = "Railroads/Stations/StationConnectLinks/line[nr_OrgEntity]", Label = "= RouteName";	
+			attribute<float32>	connectorCost:	expr = "Railroads/Stations/StationConnectLinks/connectorCost[nr_OrgEntity]";
+			attribute<m>		length: 		expr = "Railroads/Stations/StationConnectLinks/length[nr_OrgEntity]";
+			attribute<s>		Seconds: 		expr = "value(Railroads/Stations/StationConnectLinks/Seconds[nr_OrgEntity], s)";
+			attribute<bool>		IsRail:			expr = "const(False, StationConnectors, bool)";
+			attribute<uint32>	OperatorId:		expr = "const(-1, StationConnectors, uint32)";
+		}
+		unit<uint32> route: expr = "union_unit(prospectAddition, StationConnectors)",
+			DialogData = "line", 
+			DialogType = "Map", 
+			Descr = "= 'Prospective additional line'"
+		{
+			attribute<point_rd> line (arc): 	expr = "union_data(., prospectAddition/line, StationConnectors/line)", Label = "= RouteName";	
+			attribute<float32>	connectorCost:	expr = "union_data(., prospectAddition/connectorCost, StationConnectors/connectorCost)";
+			attribute<m>		length: 		expr = "arc_length(line, m)";
+			attribute<s>		Seconds: 		expr = "union_data(., prospectAddition/Seconds, StationConnectors/Seconds)";
+			attribute<bool>		IsRail:			expr = "union_data(., prospectAddition/IsRail, StationConnectors/IsRail)";
+			attribute<bool>		IsBridge:		expr = "union_data(., prospectAddition/IsBridge, StationConnectors/IsRail)";
+			attribute<uint32>	OperatorId:		expr = "union_data(., prospectAddition/OperatorId, StationConnectors/OperatorId)";
+			attribute<bool>		IsAddition:		expr = "const(True, ., bool)";
+			
+			unit<uint32> StationAddition:		expr = "subset(!IsNull(prospectAddition/prospectStations/StationId))"
+			{
+				attribute<uint32>	StationId:	expr = "prospectAddition/prospectStations/Values[Nr_OrgEntity]";
+				attribute<point_rd> centroid: 	expr = "SourceData/Railroads/Stations/RailStations/centroid[StationId]";
+			}
+		}
+	}
+	
+	container getRouteFlows: IsTemplate = "True"
+	{
+		parameter<string> RouteId;
+		parameter<string> NetworkLocation;
+		container 	AdditionRef 		{unit<uint32> 	route; }
+		container 	BaseNetworkRef 		{unit<uint32> 	Network; }
+		
+		unit<uint32>NetworkAddition:	expr = "AdditionRef/route";
+		unit<uint32>BaseNetwork: 		expr = "BaseNetworkRef/Network";
+		parameter<string> RouteName: expr = "AdditionRef/RouteName";
+					
+		unit<uint32> Network:
+			KeepData = "True",
+			FreeData = "False",
+			DialogData = "UnionData",
+			DialogType = "Map",
+			Expr       = "union_unit(BaseNetwork, NetworkAddition)"
+		{
+			attribute<uint32> 	id: 			expr = "id(Network)";		
+			attribute<point_rd> UnionData(arc): expr = "union_data(Network, BaseNetwork/UnionData, NetworkAddition/line)";
+			attribute<point_rd> Line (arc):		expr = "UnionData";
+			attribute<s>       	Seconds: 		expr = "union_data(Network, BaseNetwork/Seconds, NetworkAddition/Seconds)";
+			attribute<float32>	Minutes:		expr = "Seconds / float32(60)";
+			attribute<float32>	Km:				expr = "arc_length(UnionData, float32) / 1000f";
+			attribute<point_rd> first_point: 	expr = "first_point(UnionData)";
+			attribute<point_rd> last_point:  	expr = "last_point(UnionData)";	
+			attribute<m>       	length: 		expr = "arc_length(UnionData, m)";
+			attribute<bool>		IsRail:			expr = "union_data(Network, BaseNetwork/IsRail, NetworkAddition/IsRail)";
+			//attribute<bool>		IsBridge:		expr = "union_data(Network, BaseNetwork/IsBridge, NetworkAddition/IsBridge)";
+			attribute<bool>		IsAddition:		expr = "union_data(Network, BaseNetwork/IsAddition, NetworkAddition/IsAddition)";
+			attribute<uint32>	OperatorId:		expr = "union_data(Network, BaseNetwork/OperatorId, NetworkAddition/OperatorId)";	
+			attribute<uint32>	ContiguousRail: expr = "union_data(Network, BaseNetwork/ContiguousRail, const(BaseNetwork/MaxContiguous + uint32(1), NetworkAddition, uint32))";
+			attribute<CRParts>	CRParts_id:		expr = "rlookup(ContiguousRail, CRParts/Values)";
+			
+			unit<uint32> PointSet: expr = "union_unit(Network, Network)"
+			{attribute<point_rd> 		point:   expr = "union_data(PointSet, Network/first_point, Network/last_point)";}
+			
+			unit<uint32> NodeSet: expr       = "unique(PointSet/point)", DialogData = "Values", DialogType = "Map"
+			{ attribute<point_rd> Values; }		
+			
+			unit<uint32> YearStations: expr = "union_unit(BaseNetwork/YearStations, NetworkAddition/StationAddition)"
+			{ attribute<point_rd> centroid:	expr = "union_data(YearStations, BaseNetwork/YearStations/centroid, NetworkAddition/StationAddition/centroid)"; 
+			  attribute<NodeSet> NetRef:	expr = "rlookup(centroid, NodeSet/Values)"; }
+			
+			  unit<uint32> CRParts:	expr = "unique(ContiguousRail)"
+			{ attribute<uint32>	Values; }
+			  
+			attribute<NodeSet> 	F1(Network): 				expr = "rlookup(Network/first_point, NodeSet/Values)";
+			attribute<NodeSet> 	F2(Network): 				expr = "rlookup(Network/last_point,  NodeSet/Values)";	
+			attribute<NodeSet> 	Zones (PopulationModels/Population):	expr = "rlookup(PopulationModels/Population/centroid, NodeSet/Values)";
+			attribute<m> 		DistToStat_Nodes (NodeSet):	expr = "dijkstra_s('bidirectional;startPoint(Node_rel)',length, F1, F2, YearStations/NetRef)", IsHidden = "True";
+			attribute<m> 		DistToStat	(PopulationModels/Population): expr = "iif(DistToStat_Nodes[Zones] > value(0, m), DistToStat_Nodes[Zones], PopulationModels/Population/InternalDist)";
+			
+			parameter<s> maxImpedance:				expr = "sum(Seconds)";
+		}
+		
+		container InteractionModel: 	expr = "getInteractionModel(Network)";
+		container NetworkAllocation: 	expr = "doAllocateFlows(Network, InteractionModel/FlowMatrix, BaseFlows/NetworkAllocation/AllocationIteration/LastMatrix)";
+		container TotalFlows: 			expr  = "getTotalFlows(Network)";
+		
+		attribute<bool> connected 			(PopulationModels/Population): expr = "!IsNull(rlookup(id(PopulationModels/Population), (point_in_polygon(Network/YearStations/centroid, PopulationModels/Population/vlak))))";
+		parameter<uint32> ProvCapConnected: 					expr = "sum(uint32(bool(Population/isProvhoofd) && connected))";
+		parameter<int16> NewProvCapConnected:					expr = "int16(ProvCapConnected) - int16(BaseFlows/ProvCapConnected)";
+	}
+	
+	container getAccessibility: IsTemplate = "True"
+	{
+		unit<uint32> Network;
+			
+		unit<uint32> ODMatrix: expr = "dijkstra_m('bidirectional;startPoint(Node_rel);endPoint(Node_rel);od:impedance,OrgZone_rel,DstZone_rel',"
+			"Network/Seconds, Network/F1, Network/F2, Network/Zones, Network/Zones)"
+		{
+			attribute<PopulationModels/Population> Origin_id:   expr = "OrgZone_rel";
+			attribute<PopulationModels/Population> Dest_id:     expr = "DstZone_rel";
+		}
+		
+		attribute<float32> Accessibility (PopulationModels/Population): expr = "sum(float32(PopulationModels/Population/Population[ODMatrix/Dest_id]) * (max_elem(ODMatrix/Impedance, Population/InternalTime[ODMatrix/Dest_id]) ^ params/b1), ODMatrix/Origin_id)";
+		
+		parameter<float32> summed_access: 	expr = "sum(Accessibility)";
+		parameter<float32> average_access: 	expr = "mean(Accessibility)";
+		parameter<float32> theil:			expr = "mean((Accessibility / average_access) * log(Accessibility / average_access))";
+	}
+	
+	Template getInteractionModel
+		{
+			unit<uint32> Network;
+		
+			unit<uint32> Zones: expr = "PopulationModels/Population";
+			
+			unit<uint32> FlowMatrix: 
+				expr = "dijkstra_m('bidirectional;startPoint(Node_rel);endPoint(Node_rel);od:impedance,OrgZone_rel,DstZone_rel,LinkSet',"
+				"float32(Network/Minutes), Network/F1, Network/F2, Network/Zones, Network/Zones)" {
+				// firstflow
+				attribute<Zones> 			fromZone: 	expr = "OrgZone_rel";
+				attribute<Zones> 			toZone: 	expr = "DstZone_rel";
+				attribute<upoint>			unipoint:	expr = "point(fromZone, toZone, upoint)";
+				attribute<float32>			fromPop:	expr = "float32(Zones/Population[fromZone])";
+				attribute<float32>			toPop:		expr = "float32(Zones/Population[toZone])";
+				attribute<float32>			Emission:	expr = "params/a1 * fromPop";
+				attribute<float32>			Attraction: expr = "params/a2 * toPop";
+				attribute<float32>			Fij:		expr = "iif(fromZone <> toZone || params/InternalTrips, impedance ^ params/b1, float32(0))";
+				attribute<float32>			Ai:			expr = "float32(1) / sum(Attraction * Fij, fromZone)[fromZone]";
+				attribute<float32>			Tij:		expr = "(Ai^(float32(1) - params/Alonso_a)) * Emission * Attraction * Fij";
+				
+				attribute<float32>  UnconstrainedFlow:				expr = "Emission * Attraction * Fij";
+				attribute<float32>	UnconstrainedEmissions (Zones): expr = "sum(UnconstrainedFlow, fromZone)";
+				attribute<float32>	SinglyConstrainedTij: 			expr = "(UnconstrainedFlow / UnconstrainedEmissions[fromZone]) * fromPop";
+				
+				attribute<float32>	DefFlow:			expr = "Tij"; //, KeepData = "True";
+				attribute<float32> 	RelFlow:			expr = "DefFlow / sum(Tij, fromZone)[fromZone]";
+			}
+			attribute<float32>	Access (Zones):	expr = "sum(FlowMatrix/toPop * FlowMatrix/Impedance^params/b1, FlowMatrix/FromZone)";
+			
+			parameter<string> FlowStore: expr = "'%ProjDir%/results/' + string(RunSettings/CurrentInvestment) + '/' + NetworkLocation + routeID + '/Network/Interactions.dbf'";			
+			unit<uint32> storeFlows: expr = "FlowMatrix"
+			{
+				attribute<string>			from:	expr = "Zones/Mun[FlowMatrix/fromZone]", StorageName = "= FlowStore";
+				attribute<string>			to:		expr = "Zones/Mun[FlowMatrix/toZone]", StorageName = "= FlowStore";
+				attribute<float32>			Cij0:	expr = "BaseFlows/InteractionModel/FlowMatrix/Impedance[rlookup(FlowMatrix/unipoint, BaseFlows/InteractionModel/FlowMatrix/unipoint)]", StorageName = "= FlowStore";
+				attribute<float32>			Cij1:	expr = "FlowMatrix/Impedance", StorageName = "= FlowStore";
+				attribute<float32>			Tij0:	expr = "BaseFlows/InteractionModel/FlowMatrix/DefFlow[rlookup(FlowMatrix/unipoint, BaseFlows/InteractionModel/FlowMatrix/unipoint)]", StorageName = "= FlowStore";
+				attribute<float32>			Tij1: 	expr = "FlowMatrix/DefFlow", StorageName = "= FlowStore";
+				attribute<float32>			Dif:	expr = "Tij1 - Tij0", StorageName = "= FlowStore";
+				attribute<float32>			AbsDif:	expr = "Abs(Dif)", StorageName = "= FlowStore";
+			}
+			parameter<float32>	TotalTraveltime0:				expr = "sum(storeFlows/Tij0 * storeFlows/Cij0)";
+			parameter<float32>	TotalTraveltime1:				expr = "sum(storeFlows/Tij1 * storeFlows/Cij1)";
+			attribute<float32>	TravelTimeFrom1 	(zones): 	expr = "sum(storeFlows/Tij0 * storeFlows/Cij0, FlowMatrix/FromZone)";
+			attribute<float32>	TravelTimeTo1		(zones):	expr = "sum(storeFlows/Tij0 * storeFlows/Cij0, FlowMatrix/ToZone)";
+			attribute<float32>	AvgTravelTimeFrom1 	(zones):	expr = "TravelTimeFrom1 / float32(Zones/Population)";
+			attribute<float32>	AvgTravelTimeTo1 	(zones):	expr = "TravelTimeTo1 / float32(Zones/Population)";
+		}
+	Template doAllocateFlows {
+		unit<uint32> Network;
+		unit<uint32> FlowMatrix;
+		unit<uint32> BaseMatrix: expr = "FlowMatrix";
+		
+		unit<uint32> Zones: expr = "PopulationModels/Population";
+	
+		container init {
+			
+			unit<uint32> LastMatrix: expr = "AllocationIteration/LastMatrix";
+		
+			unit<uint32> Matrix: expr = "FlowMatrix" {
+				attribute<LastMatrix>	defM_id:		expr = "rlookup(unipoint, AllocationIteration/LastMatrix/unipoint)";
+				attribute<BaseMatrix>	baseM_id:		expr = "rlookup(unipoint, BaseMatrix/unipoint)";
+				attribute<float32> 		BaseFlow:		expr = "BaseMatrix/DefFlow[baseM_id]";
+				attribute<float32>		BaseImpedance:	expr = "BaseMatrix/Impedance[baseM_id]";
+				
+				attribute<float32>  RouteUtility: 		expr = "exp(params/UtilityOfTravTime * (Impedance / float32(60.0)))";
+				attribute<float32>  TotalUtility:		expr = "RouteUtility";
+				attribute<float32>  DefRouteShare:  	expr = "RouteUtility / LastMatrix/DefTotalUtility[defM_id]";
+				
+				attribute<float32>	T0:= BaseMatrix/BaseImpedance[baseM_id]; // impedance before investment (shortest path)
+				attribute<float32>	T1:= Impedance; // impedance after investment (shortest path)
+				attribute<float32>	Q0:= BaseMatrix/BaseFlow[baseM_id]; // number of flows before investment
+				attribute<float32>	Q1:= Tij; // number of flows after investment
+				attribute<float32> S:= 0.5f * (Q0 + Q1) * (T0 - T1); // consumer surplus
+				
+				attribute<float32>	Cumu_Weighted_T0:= BaseFlows/NetworkAllocation/AllocationIteration/LastMatrix/Cumu_Weighted_T1[baseM_id];
+				attribute<float32> 	Cumu_Weighted_T1:= Impedance;
+				
+				unit<uint32> links := sequence2points(linkset), DialogData = "Line", DialogType = "map" {
+					attribute<point_rd> Line (arc): 	expr = "Network/Line[links/Point]";
+					attribute<float32>	Flow:			expr = "DefFlow[SequenceNr]";
+					attribute<float32>	BaseFlow:		expr = "Matrix/BaseFlow[SequenceNr]";
+					attribute<float32>  Impedance:		expr = "Network/Minutes[links/Point]";
+					attribute<float32>  UpdImpedance:	expr = "RelFlow[SequenceNr] * Impedance";
+					attribute<float32>	DefBaseFlow:	expr = "DefRouteShare[SequenceNr] * BaseFlow";
+					attribute<float32>  DefLinkFlow:	expr = "DefRouteShare[SequenceNr] * Flow";
+				}
+			}
+			unit<uint32> Flows:	 expr = "Network" {
+				attribute<float32>  NetFlows: 			expr = "sum(Matrix/links/DefLinkFlow, Matrix/links/Point)";
+				attribute<float32>	BaseFlows:			expr = "sum(Matrix/links/DefBaseFlow, Matrix/links/Point)";
+				attribute<float32> 	UpdImp: 			expr = "sum(Matrix/links/UpdImpedance, Matrix/links/Point)";
+				
+			}
+		}
+		Container AllocationIteration: expr = "Loop(doAllocationIteration, uint16(7))" {
+			unit<uint32> LastMatrix: expr = "LastIter/nextValue/Matrix" {
+				attribute<float32> DefTotalUtility: expr = "TotalUtility";
+			}
+			unit<uint32> LastNetwork: expr = "Network" {
+				attribute<float32> AllocatedFlows: 		expr = "LastIter/nextValue/Flows/NetFlows";
+				attribute<float32> AllocatedBaseFlows: 	expr = "LastIter/nextValue/Flows/BaseFlows";
+			}
+			unit<uint32> LastZonesResults:= Zones {
+				attribute<float32> 	Q0:= sum(init/Matrix/Q0, init/Matrix/OrgZone_rel);
+				attribute<float32> 	Q1:= sum(init/Matrix/Q1, init/Matrix/OrgZone_rel);
+				attribute<float32>	T0:= MakeDefined(sum(init/Matrix/T0 * init/Matrix/Q0, init/Matrix/OrgZone_rel) / Q0, 0f);
+				attribute<float32>	T1:= MakeDefined(sum(init/Matrix/T1 * init/Matrix/Q1, init/Matrix/OrgZone_rel) / Q1, 0f);
+				attribute<float32>	S:=  sum(init/Matrix/S, init/Matrix/OrgZone_rel);
+				attribute<float32>	dT:= T0 - T1;
+				attribute<float32>	dQ:= Q0 - Q1;
+				
+			}
+		}
+		Template doAllocationIteration {
+			parameter<uint16> NrIter;
+			container currValue: expr = "init";
+			container nextValue
+			{
+				unit<uint32> PrevMatrix: expr = "currValue/Matrix";
+				unit<uint32> LastMatrix: expr = "currValue/LastMatrix";
+				unit<uint32> Matrix: 
+				expr = "dijkstra_m('bidirectional;startPoint(Node_rel);endPoint(Node_rel);od:impedance,OrgZone_rel,DstZone_rel,LinkSet',"
+				"float32(currValue/Flows/UpdImp), Network/F1, Network/F2, Network/Zones, Network/Zones)" {
+					// firstflow
+					attribute<Zones> 		fromZone: 	expr = "OrgZone_rel";
+					attribute<Zones> 		toZone: 	expr = "DstZone_rel";
+					attribute<upoint>		unipoint:	expr = "point(fromZone, toZone, upoint)";
+					attribute<PrevMatrix> 	prevM_id:	expr = "rlookup(unipoint, PrevMatrix/unipoint)";
+					attribute<LastMatrix>	defM_id:	expr = "rlookup(unipoint, LastMatrix/unipoint)";
+					
+					attribute<float32>	DefFlow:		expr = "PrevMatrix/DefFlow[prevM_id]"; //, KeepData = "True";
+					attribute<float32>	RelFlow:		expr = "PrevMatrix/RelFlow[prevM_id]"; //, KeepData = "True";
+					attribute<float32>  BaseFlow:		expr = "PrevMatrix/BaseFlow[prevM_id]";
+					attribute<float32>	BaseImpedance:	expr = "PrevMatrix/BaseImpedance[prevM_id]";
+					attribute<float32>  Minutes:		expr = "sum(links/Minutes, links/SequenceNr)";
+					attribute<float32>  RouteUtility: 	expr = "exp(params/UtilityOfTravTime * (Minutes / float32(60.0)))";
+					attribute<float32>  TotalUtility:	expr = "PrevMatrix/TotalUtility[prevM_id] + RouteUtility";
+					
+					attribute<float32>  DefRouteShare:  expr = "RouteUtility / LastMatrix/DefTotalUtility[defM_id]";
+					
+					attribute<float32>	Weighted_T1:= Minutes * DefRouteShare;
+					//attribute<float32>	Cumu_Weighted_D0:= PrevMatrix/Cumu_Weighted_D0[prevM_id];
+					//attribute<float32>	Cumu_Weighted_D1:= PrevMatrix/Cumu_Weighted_D1[prevM_id] + Weighted_D1;
+					attribute<float32>	Cumu_Weighted_T0:= PrevMatrix/Cumu_Weighted_T0[prevM_id];
+					attribute<float32>	Cumu_Weighted_T1:= PrevMatrix/Cumu_Weighted_T1[prevM_id] + Weighted_T1;
+					
+					unit<uint32> links := sequence2points(linkset), DialogData = "Line", DialogType = "map" {
+						attribute<point_rd> Line (arc): 	expr = "Network/Line[links/Point]";
+						attribute<float32>  Minutes:		expr = "Network/Minutes[links/Point]";
+						attribute<float32>	Flow:			expr = "Matrix/DefFlow[SequenceNr]";
+						attribute<float32>	BaseFlow:		expr = "Matrix/BaseFlow[SequenceNr]";
+						attribute<float32>  Impedance:		expr = "currValue/Flows/UpdImp[links/Point]";
+						attribute<float32>  UpdImpedance:	expr = "RelFlow[SequenceNr] * Impedance";
+						attribute<float32>	DefBaseFlow:	expr = "DefRouteShare[SequenceNr] * BaseFlow";
+						attribute<float32>  DefLinkFlow:	expr = "DefRouteShare[SequenceNr] * Flow";
+					}
+				}
+				unit<uint32> Flows: expr = "Network" {
+					attribute<float32>  NetFlows: 		expr = "currValue/Flows/Netflows 	+ sum(Matrix/links/DefLinkFlow, Matrix/links/Point)";
+					attribute<float32>	BaseFlows:		expr = "currValue/Flows/BaseFlows 	+ sum(Matrix/links/DefBaseFlow, Matrix/links/Point)";
+					attribute<float32> 	UpdImp: 		expr = "sum(Matrix/links/UpdImpedance, Matrix/links/Point)";
+				}	
+			}
+		}
+	}
+	container getTotalFlows: IsTemplate = "True"
+	{	
+		unit<uint32>Network;
+		
+		parameter<string> NetStoragePlace: expr = "'%ProjDir%/runs/' + RunSettings/Scenarios/Name[RunSettings/ScenarioId] + '/flows/' + string(RunSettings/CurrentInvestment) + '/' + routeID + '/TotalFlows'";
+		parameter<string> ZoneStoragePlace: expr = "'%ProjDir%/runs/' + RunSettings/Scenarios/Name[RunSettings/ScenarioId] + '/zones/' + string(RunSettings/CurrentInvestment) + '/' + routeID + '/CBA_results'";
+		
+		parameter<bool> store_all:= True, explicitsuppliers = "Flows;CBAResults;";
+		
+		unit<uint32>Flows: expr = "Network", StorageName = "= NetStoragePlace + '.dbf'"
+		{
+			attribute<point_rd> line (arc, Network):expr = "Network/UnionData", StorageName = "= NetStoragePlace + '.shp'";
+			attribute<float32>	length	 (Network): expr = "value(Network/length, float32)";
+			attribute<float32>  TotFlows (Network): expr = "NetworkAllocation/AllocationIteration/LastNetwork/AllocatedFlows";
+			attribute<float32>  OrgFlows (Network): expr = "NetworkAllocation/AllocationIteration/LastNetwork/AllocatedBaseFlows";
+			attribute<float32>  RailFlows (Network):expr = "iif(Network/IsRail, TotFlows, float32(0))";
+			attribute<float32>  AddFlows (Network): expr = "iif(Network/IsAddition, TotFlows, float32(0))";
+			attribute<string>	LineOp	(Network): 	expr = "iif(IsNull(Operators/Operators/Values[Network/OperatorId]),'', Operators/Operators/Values[Network/OperatorId])";
+			attribute<uint32>	OpId	 (Network): expr = "Network/OperatorId";
+		}
+		unit<uint32> CBAResults: expr = "Population", StorageName = "= ZoneStoragePlace + '.dbf'" {
+			attribute<point_rd> point (polygon):= vlak, StorageName = "= ZoneStoragePlace + '.shp'";
+			attribute<uint32>	id:= 	id(.);
+			attribute<float32>	P:=		Population;
+			attribute<float32> 	Q0:= 	NetworkAllocation/AllocationIteration/LastZonesResults/Q0;
+			attribute<float32> 	Q1:= 	NetworkAllocation/AllocationIteration/LastZonesResults/Q1;
+			attribute<float32> 	S:= 	NetworkAllocation/AllocationIteration/LastZonesResults/S;
+		}
+	}
+	
+	container summarizeStoredFlows: IsTemplate = "True"
+	{
+		parameter<string> NetworkLocation;
+		parameter<string> RouteId;
+		
+		parameter<string> NetStoragePlace: expr = "'%ProjDir%/runs/' + RunSettings/Scenarios/Name[RunSettings/ScenarioId] + '/flows/' + string(RunSettings/CurrentInvestment) + '/' + routeID + '/TotalFlows'";
+		
+		unit<uint32> Flows: 
+			StorageName 	= "= NetStoragePlace + '.dbf'",
+			StorageReadOnly = "True",
+			DialogData 		= "line",
+			DialogType 		= "map"
+		{
+			attribute<point_rd>	line (arc): StorageName 	= "= NetStoragePlace + '.shp'";
+			attribute<float32>	length;
+			attribute<float32>  TotFlows;
+			attribute<float32>  RailFlows;
+			attribute<float32>  AddFlows;
+			attribute<float32>  OpFlows;
+			attribute<float32>	OrgFlows;
+			attribute<string>	LineOp;
+			attribute<Operators/Operators>	OpId;
+			attribute<float32>	km: expr = "length / float32(1000)";
+			attribute<float32>	SpeedKmh: 	expr = "iif(RailFlows = float32(0), WalkKmh, TrainKmh)";
+			attribute<float32>	Minutes:	expr = "(km / SpeedKmh) * float32(60)";
+			
+			unit<uint32> matchdata: expr = "Flows"
+			{
+				attribute<point_rd> line (arc):	expr = "Flows/line";
+				attribute<point_rd> frompoint: 	expr = "first_point(line)";
+				attribute<point_rd> topoint:	expr = "last_point(line)";
+				attribute<uint32>	fromNode:	expr = "rlookup(first_point(line), nodes/Values)";
+				attribute<uint32>	toNode:		expr = "rlookup(last_point(line), nodes/Values)";
+				attribute<upoint>	lineID:		expr = "point(min_elem(fromNode, toNode), max_elem(fromNode, toNode), upoint)";
+				attribute<uint32>	BaseId:		expr = "rlookup(lineID, BaseNetwork/matchdata/lineID)";
+				attribute<float32>	BaseFlow:	expr = "BaseNetwork/TotFlows[BaseId]"; 
+			}
+			unit<uint32> RailNetwork: expr = "subset(RailFlows > float32(0))"
+			{
+				attribute<point_rd> line (arc): expr = "Flows/line[Nr_OrgEntity]";
+				attribute<m>	length:			expr = "arc_length(line, m)";
+				
+				attribute<point_rd> frompoint: 	expr = "first_point(line)";
+				attribute<point_rd> topoint: 	expr = "last_point(line)";
+				
+				unit<uint32> PointSet: 	expr = "union_unit(RailNetwork, RailNetwork)" {attribute<point_rd> point: expr = "union_data(., frompoint, topoint)";}
+				unit<uint32> NodeSet:	expr = "unique(PointSet/point)";
+				
+				attribute<NodeSet> F1: expr = "rlookup(frompoint, NodeSet/Values)";
+				attribute<NodeSet> F2: expr = "rlookup(topoint, NodeSet/Values)";
+				
+				unit<uint32> nodes_matrix: expr = "dijkstra_m('bidirectional;startPoint(Node_rel);endPoint(Node_rel);od:impedance,OrgZone_rel,DstZone_rel', length, F1, F2, id(NodeSet), id(NodeSet))"
+				{ attribute<m> length: expr = "impedance / 1000[m] < 1000[m] ? impedance / 1000[m] : value(0 / 0, m)";}
+			}
+			
+		}
+		
+		unit<uint32> StoreUnit: expr = "Flows"
+		{
+			attribute<point_rd> line (arc):	expr = "Flows/line", StorageName = "='%ProjDir%/results/' + string(RunSettings/CurrentInvestment) + '/' + NetworkLocation + routeID + '/Network/StoreTotalFlows.shp'";	
+			attribute<float32>  TotFlows: 	expr = "Flows/TotFlows", StorageName = "='%ProjDir%/results/' + string(RunSettings/CurrentInvestment) + '/' + NetworkLocation + routeID + '/Network/StoreTotalFlows.dbf'";	
+			attribute<float32>  RailFlows: 	expr = "Flows/RailFlows", StorageName = "='%ProjDir%/results/' + string(RunSettings/CurrentInvestment) + '/' + NetworkLocation + routeID + '/Network/StoreTotalFlows.dbf'";	
+			attribute<float32>  BaseFlows: 	expr = "MakeDefined(Flows/matchdata/BaseFlow, float32(0))", StorageName = "='%ProjDir%/results/' + string(RunSettings/CurrentInvestment) + '/' + NetworkLocation + routeID + '/Network/StoreTotalFlows.dbf'";	
+			attribute<float32>  AddFlows:	expr = "Flows/AddFlows", StorageName = "='%ProjDir%/results/' + string(RunSettings/CurrentInvestment) + '/' + NetworkLocation + routeID + '/Network/StoreTotalFlows.dbf'";	
+			attribute<string>	LineOp:		expr = "Flows/LineOp", StorageName = "='%ProjDir%/results/' + string(RunSettings/CurrentInvestment) + '/' + NetworkLocation + routeID + '/Network/StoreTotalFlows.dbf'";	
+			attribute<float32>	Dif:		expr = "TotFlows - BaseFlows", StorageName = "='%ProjDir%/results/' + string(RunSettings/CurrentInvestment) + '/' + NetworkLocation + routeID + '/Network/StoreTotalFlows.dbf'";	
+		}
+		
+		parameter<float32> TotMinutes:			expr = "sum(Flows/TotFlows * Flows/Minutes)";
+		parameter<float32> RailMinutes:			expr = "sum(Flows/RailFlows * Flows/Minutes)";
+		parameter<float32> TotOrgMinutes: 		expr = "sum(Flows/OrgFlows * Flows/Minutes)";
+		parameter<float32> TotRailMinutes: 		expr = "sum(float32(Flows/RailFlows > float32(0)) * Flows/OrgFlows * Flows/Minutes)";
+		parameter<float32> tMinPerCapita:		expr = "TotMinutes / float32(sum(Population/Population))";
+		parameter<float32> rMinPerCapita:		expr = "RailMinutes / float32(sum(Population/Population))";
+		parameter<float32> tOrgMinPerCapita:	expr = "TotOrgMinutes / float32(sum(Population/Population))";
+		parameter<float32> rOrgMinPerCapita:	expr = "TotRailMinutes / float32(sum(Population/Population))";
+		parameter<float32> dMinPerCapita:		expr = "sum((Flows/TotFlows - Flows/OrgFlows) * Flows/Minutes) / float32(sum(Population/Population))";
+		parameter<float32> dRMinPerCapita:		expr = "sum((Flows/RailFlows - (float32(Flows/RailFlows > float32(0)) * Flows/OrgFlows)) * Flows/Minutes) / float32(sum(Population/Population))";
+		parameter<float32> TotFlows:  			expr = "sum(Flows/TotFlows * Flows/km)";
+		parameter<float32> RailFlows: 			expr = "sum(Flows/RailFlows * Flows/km)";
+		parameter<float32> AddRailFlows: 		expr = "sum(iif(Flows/RailFlows > float32(0), Flows/AddFlows * Flows/km, float32(0)))";
+		parameter<float32> NetworkDiameter:		expr = "max(Flows/RailNetwork/nodes_matrix/length)";
+		
+		unit<uint32> FlowsPerOperator: expr = "Operators/Operators"
+		{
+			attribute<FlowsPerOperator> id:		expr = "id(FlowsPerOperator)";	
+			attribute<float32>	RailFlows:  	expr = "sum(Flows/RailFlows * Flows/km, Flows/OpId)"; //, StorageName = "='%ProjDir%/results/' + string(RunSettings/CurrentInvestment) + '/' + NetworkLocation + routeID + '/Network/FlowsPerOperator.dbf'";
+		}
+		unit<uint32>	BaseNetwork: expr = "BaseNetworkFlows/Flows",
+			StorageReadOnly = "True",
+			DialogData 		= "line",
+			DialogType 		= "map"
+		{
+			attribute<point_rd> line (arc): expr = "BaseNetworkFlows/Flows/line";
+			attribute<float32>	TotFlows:	expr = "BaseNetworkFlows/Flows/TotFlows";
+			unit<uint32> matchdata: expr = "BaseNetwork"
+			{
+				attribute<point_rd>	frompoint:	expr = "first_point(line)";
+				attribute<point_rd>	topoint:	expr = "last_point(line)";
+				attribute<uint32>	fromNode:	expr = "rlookup(first_point(line), nodes/Values)";
+				attribute<uint32>	toNode:		expr = "rlookup(last_point(line), nodes/Values)";
+				attribute<upoint>	lineID:		expr = "point(min_elem(fromNode, toNode), max_elem(fromNode, toNode), upoint)";
+			}
+		}
+		
+		unit<uint32> allpoints: expr = "union_unit(Flows, Flows, BaseNetwork, BaseNetwork)"
+		{ attribute<point_rd>	points: expr = "union_data(allpoints, first_point(Flows/line), last_point(Flows/line), first_point(BaseNetwork/line), last_point(BaseNetwork/line))"; }
+		unit<uint32> nodes:		expr = "unique(allpoints/points)"
+		{ attribute<point_rd>	Values; }		
+		
+	}
+}

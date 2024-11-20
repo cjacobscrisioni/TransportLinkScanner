@@ -1,0 +1,111 @@
+container getInbetweens: Using = "Units;PopulationModels;params;"
+{
+
+	parameter<string> ResultsCollection_StoragePlace: expr = "'%ProjDir%/runs/'+ RunSettings/Scenarios/Name[RunSettings/ScenarioId] + '/altgeneration/alt_'+ string(RunSettings/CurrentInvestment)";
+	
+	parameter<Operators/Operators> OpNum:= RunSettings/Scenarios/modelRealInvestments[RunSettings/ScenarioId] ? rlookup(SourceData/Railroads/RealInvestmentConstructor/opid, Operators/Operators/RealOperator_id) : max_index(Operators/Operators/random);
+
+	unit<uint32> PeriodAltlines: 
+		StorageName = "= ResultsCollection_StoragePlace +'.dbf'",
+		DialogData      = "line",
+		DialogType      = "Map",
+		SyncMode        = "none",
+		StorageReadOnly = "True"
+	{
+		attribute<point_rd> line (arc): StorageName = "= ResultsCollection_StoragePlace + '.shp'", StorageReadOnly = "True";
+		attribute<float32>  Costs;
+		attribute<float32>  Length;
+		attribute<string> 	Altid;
+		attribute<string> 	Label;
+		attribute<uint32> 	LinkType;
+		attribute<uint32> 	sel_link;
+		attribute<PeriodAltSets> PeriodAltSet_id: expr = "rlookup(Altid, PeriodAltSets/Values)";
+		attribute<float32>  AccountedCosts: expr = "LinkType < 2 ? Costs: float32(0)";
+	}
+	
+	unit<uint32> PeriodAltSets: expr = "unique(periodAltlines/Altid)"
+	{
+		attribute<string> 	Values;
+		attribute<string> 	uniqueCode:			expr = "'alt_' + string(id(.))";
+		attribute<uint32> 	maxLinkType: 		expr = "max(periodAltlines/LinkType, periodAltlines/PeriodAltSet_id)";
+		attribute<float32> 	Costs: 				expr = "sum(periodAltlines/AccountedCosts, periodAltlines/PeriodAltSet_id)";
+		attribute<float32> 	Length: 			expr = "sum(periodAltlines/Length, periodAltlines/PeriodAltSet_id)";
+		attribute<float32>  RailLength:			expr = "sum(float32(periodAltlines/LinkType = 0) * periodAltlines/Length, periodAltlines/PeriodAltSet_id)";
+		attribute<bool>	  	UsesExistingTrack: 	expr = "maxLinkType = 4";
+		attribute<bool>		NextPeriodProject:	expr = "!IsNull(strpos(Values, 'Concessie'))";
+		attribute<uint32>	sel_link:			expr = "max(periodAltlines/sel_link, periodAltLines/PeriodAltSet_id)";
+		
+		parameter<string> string_f_cpo: expr = "'union_data(PeriodAltSets,'+ AsItemList('AltRoutes/'+ uniqueCode +'/inroute/OperatorConnection/OperatorName') +')'";
+		parameter<string> empty: 		expr = "string('')";
+		
+		attribute<string> string_p_op (Operators/Real_Operators): expr = "replace(string_f_cpo, 'OperatorName', Operators/Real_Operators/Name)";
+		
+		container Connections_per_operator: expr = "= 'for_each_nedv(Operators/Real_Operators/Name, ' + "
+			"'replace(string_f_cpo, '+ quote('OperatorName') + ', Operators/Real_Operators/Name), PeriodAltSets, bool)'";
+		
+	}
+
+	container AltRoutes: expr = "for_each_ne(PeriodAltSets/uniqueCode, 'getAltRoute('+ string(id(PeriodAltSets)) +')')";
+	
+	Container getAltRoute: IsTemplate = "True"
+	{
+		parameter<uint32> inPeriodAltSet;
+		parameter<string> routename: expr = "PeriodAltSets/Values[inPeriodAltSet]";
+		
+		unit<uint32> inroute: expr = "subset(PeriodAltLines/PeriodAltSet_id = inPeriodAltSet && PeriodAltLines/LinkType <> 4)", DialogData = "line", DialogType = "map"
+		{
+			attribute<point_rd> line (arc): expr = "PeriodAltLines/line[nr_OrgEntity]";
+			attribute<float32>  Costs:		expr = "PeriodAltLines/AccountedCosts[nr_OrgEntity]";
+			attribute<uint32> 	LinkType:	expr = "PeriodAltLines/LinkType[nr_OrgEntity]";
+			
+			attribute<point_rd> frompoint:  expr = "first_point(line)";
+			attribute<point_rd> topoint:  	expr = "last_point(line)";
+			
+			unit<uint32> pointSet: expr = "union_unit(inroute, inroute)" 
+			{
+				attribute<point_rd> points: expr = "union_data(., frompoint, topoint)";
+				attribute<Zones> 	inZone: expr = "point_in_polygon(points, Zones/vlak)";
+			}
+			unit<uint32> NodeSet:  expr = "unique(pointSet/points)" {attribute<point_rd> Values;}
+			
+			container OperatorConnection: expr = "for_each_nedv(Operators/Real_Operators/Name, "
+				"'any(!IsNull(rlookup(NodeSet/Values, CalcBenefits/BaseFlows/BaseNetwork/nodes_p_operator/'+ Operators/Real_Operators/Name +'/OperatorNet/NodeSet/Values)))', void, bool)";
+			
+		}
+		
+		attribute<bool> containsroute (Zones): expr = "!IsNull(rlookup(id(Zones), inroute/pointSet/inZone))";
+		
+		unit<uint32> routecontainingzones: expr = "subset(containsroute)"
+		{
+			attribute<point_rd> centroid: 	expr = "Zones/centroid[Nr_OrgEntity]";
+			attribute<uint16>	Haven:		expr = "Zones/isHaven[Nr_OrgEntity]";
+			attribute<uint16>	ProvHoofd: 	expr = "Zones/isProvHoofd[Nr_OrgEntity]";
+			attribute<uint16>	BorderZone:	expr = "Zones/isBorderZone[Nr_OrgEntity]";
+		}
+		
+		parameter<uint16>		Haven: 		expr = "max(uint16(routecontainingzones/Haven))";
+		parameter<uint16>		ProvHoofd: 	expr = "max(uint16(routecontainingzones/ProvHoofd))";
+		parameter<uint16>		BorderZone: expr = "max(uint16(routecontainingzones/BorderZone))";
+		
+		unit<uint32> route: expr = "connect(inroute/line, routecontainingzones/centroid)", DialogData = "line", DialogType = "Map"
+		{
+			attribute<point_rd> line (arc): expr = "UnionData";
+			attribute<float32>	Costs:		expr = "MakeDefined(inroute/costs[Nr_OrgEntity], float32(0))";
+			attribute<uint32>	LinkType:	expr = "MakeDefined(inroute/LinkType[Nr_OrgEntity], 2)";
+			attribute<bool>		isRail:		expr = "LinkType < 2 || Linktype = 4";
+			attribute<bool> 	isBridge:	expr = "const(false, ., bool)";
+			attribute<bool>		isAddition: expr = "const(True, ., bool)";
+			attribute<Operators/Operators>	OperatorId:	expr = "const(OpNum,.,Operators/Operators)";
+			attribute<LinkTypes>inv_type:= 	switch(case(!bool(IsRail), 0[LinkTypes]), case(bool(Operators/Operators/State)[OperatorId], 2[LinkTypes]), case(bool(Operators/Operators/Local)[OperatorId], 3[LinkTypes]), 1[LinkTypes]);
+			attribute<s>		Seconds:=	length / LinkTypes/speeds[inv_type];
+			attribute<m>		length: 	expr = "arc_length(line, m)";
+			//attribute<s>		Seconds:	expr = "isRail ? length / TrainSpeed: (length / WalkSpeed) + WaitingSeconds";  
+			
+			unit<uint32> StationAddition:		expr = "routecontainingzones";
+			
+		}
+		
+	}
+	
+	
+}

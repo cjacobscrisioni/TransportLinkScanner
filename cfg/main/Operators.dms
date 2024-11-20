@@ -1,0 +1,71 @@
+Container Operators: Using = "SourceData;SourceData/Railroads/Railroads/Railroad_data;"
+{
+	
+	parameter<uint16> StateActivation: expr = "sum(Operators/State * Operators/Activation) / sum(Operators/State)";
+	
+	unit<uint32> ActiveOperators: expr = "subset(Operators/Activation <= RunSettings/OpenYear && id(Operators) > 0[Operators] && Operators/ScenarioActive && (Operators/Exclusive_activation || Operators/NoPause))"
+	{
+		attribute<string>  	Values: 	expr = "Operators/Values[Nr_OrgEntity]";
+		attribute<string>	Label:		expr = "Values", DialogType = "LabelText";
+		attribute<uint16>	Local:		expr = "Operators/Local[Nr_OrgEntity]";
+		attribute<uint16>  	State:		expr = "Operators/State[Nr_OrgEntity]";
+		attribute<uint16>  	Activation:	expr = "Operators/Activation[Nr_OrgEntity]";
+		attribute<Operators>Operator_id:expr = "Operators/Operator_id[Nr_OrgEntity]";
+	}
+
+	unit<uint32> Operators: expr = "union_unit(Random_Operator, Real_Operators)"
+	{
+		attribute<string>  	Values: 	expr = "union_data(Operators, Random_Operator/Name, Real_Operators/Name)";
+		attribute<string>	Name:		expr = "Values";
+		attribute<string>	Label:		expr = "Values", DialogType = "LabelText";
+		attribute<uint16>	Local:		expr = "union_data(Operators, Random_Operator/Local, Real_Operators/Local)";
+		attribute<uint16>  	State:		expr = "union_data(Operators, Random_Operator/State, Real_Operators/State)";
+		attribute<uint16>  	Activation:	expr = "union_data(Operators, Random_Operator/Activation, Real_Operators/Activation)";
+		attribute<bool>		Exclusive_activation:= union_data(Operators, const(True,Random_Operator,bool), Real_Operators/Exclusive_activation);
+		attribute<Operators>Operator_id:expr = "id(.)";
+		attribute<float32> 	Random:		expr = "rnd_uniform(uint32(RunSettings/InYear), ., range(float32, float32(0), float32(0.1)))";
+		attribute<uint32>	LastInv:	expr = "max(StartNet/WholeNetwork/InvestId, StartNet/WholeNetwork/OpNum)";
+		attribute<bool>		NoPause:	expr = "RunSettings/CurrentInvestment = 0 || (LastInv + uint32(params/minInvestmentPause)) <= RunSettings/CurrentInvestment";
+		attribute<bool> 	ScenarioActive:expr = "RunSettings/ScenariosXOperators/Active[SxO_id]";
+		attribute<uint32> 	SxO_id: 	expr = "rlookup(point(const(RunSettings/ScenarioId,.,RunSettings/Scenarios), id(.), upoint), RunSettings/ScenariosXOperators/attId)";
+		attribute<uint32>	OpType:		expr = "switch(case(bool(State), 2), case(bool(Local), 1), case(id(.) = 0, 0 / 0), 0)";
+		attribute<Real_Operators> RealOperator_id:= union_data(., const(0 / 0, Random_Operator, Real_Operators), id(Real_Operators));
+	}
+	unit<uint32> Random_Operator: expr = "range(uint32, 0, 1)"
+	{ 
+		attribute<string> 	Name: 		['Random']; 
+		attribute<uint16>	Local:		[0];
+		attribute<uint16>	State:		[0];
+		attribute<uint16>	Activation: [1839];
+		attribute<string>   Label:		expr = "Name", DialogType = "LabelText";
+	}
+	unit<uint32> Real_Operators:= = RunSettings/Scenarios/modelRealInvestments[RunSettings/ScenarioId] ? 'Historical_Operators' : 'Model_Operators' {
+		attribute<bool>	  Exclusive_activation:= id(.) = SourceData/Railroads/RealInvestmentConstructor/OpId || !RunSettings/Scenarios/modelRealInvestments[RunSettings/ScenarioId];
+	}
+	unit<uint32> Historical_Operators: expr = "unique(Expl)"
+	{
+		attribute<string> Name: 		expr = "Values";
+		attribute<uint16> Local: 		expr = "max(LocalTrck, OperatorId)";
+		attribute<uint16> State:		expr = "uint16(Values = 'NS' || Values = 'SS')";
+		attribute<uint16> Activation:	expr = "min(Open1, OperatorId)";
+		attribute<string>   Label:		expr = "Name", DialogType = "LabelText";
+	}
+	unit<uint32> Model_Operators: NrOfRows = 5
+	{ 
+		attribute<string>	Name: 		['Private_A', 'Private_B', 'Private_Local_A', 'Private_Local_B', 'State']; 
+		attribute<uint16>   Local:		[0,0,1,1,0];
+		attribute<uint16>	State:		[0,0,0,0,1];
+		attribute<uint16>	Activation:	[1838,1838,1869,1879,1860];
+		attribute<string>   Label:		expr = "Name", DialogType = "LabelText";
+	}
+	unit<uint32> Private_Operators: NrOfRows = 4
+	{ 
+		attribute<string>	Name: 		['Private_A', 'Private_B', 'Private_Local_A', 'Private_Local_B']; 
+		attribute<uint16>   Local:		[0,0,1,1];
+		attribute<uint16>	State:		[0,0,0,0];
+		attribute<uint16>	Activation:	[1838,1838,1869,1879];
+		attribute<string>   Label:		expr = "Name", DialogType = "LabelText";
+	}	
+	
+	
+}

@@ -1,0 +1,181 @@
+Container InvestmentDecision: Using = "RunSettings;LinkBenefits/calcBenefits;LinkBenefits/getInbetweens;"
+{	
+	
+	#include<SimpleDecisionEvaluator.dms>
+
+	parameter<uint32>  rankselection: expr = "= Scenarios/rankselection[RunSettings/ScenarioId]";
+
+	parameter<float32> totalSuitability: expr = "sum(InvestorsXInvestments/exp_suitability)";
+	
+	parameter<string> 	CollectionStoragePlace: 	expr = "= quote(Expand(., '%ProjDir%') + '/runs/' + RunSettings/Scenarios/Name[RunSettings/ScenarioId] + '/linkselection/AdditionSelection_'+ string(RunSettings/CurrentInvestment) +'.dbf')";
+	parameter<string>   AltCharacteristicsPlace:	expr = "= quote(Expand(., '%ProjDir%') + '/runs/' + RunSettings/Scenarios/Name[RunSettings/ScenarioId] + '/linkselection/AlternativesCharacteristics_'+ string(RunSettings/CurrentInvestment) +'.dbf')";
+	
+	//parameter<InvestorsXInvestments> MostLikelyLink: expr = "rlookup(max(InvestorsXInvestments/probability), InvestorsXInvestments/probability)";
+	parameter<InvestorsXInvestments> MostLikelyLink: expr = "rlookup(nth_element(InvestorsXInvestments/probability, #InvestorsXInvestments - (1 +  rankselection)), InvestorsXInvestments/probability)";
+	parameter<Operators/Operators> 	 MostLikelyInvestor: expr = "InvestorsXInvestments/OpNum[MostLikelyLink]";
+	
+	unit<uint32> InvestorsXInvestments: expr = "= 'union_unit('+ AsItemList('OperatorSuitabilities/' + Operators/ActiveOperators/Values + '/VariableCollection') +')'"
+	{
+		attribute<string> 	Name: 				expr = "= 'union_data(., ' + AsItemList('OperatorSuitabilities/' + Operators/ActiveOperators/Values + '/VariableCollection/Name') + ')'", StorageName = "= CollectionStoragePlace"; 
+		attribute<float32> 	exp_suitability:	expr = "= 'union_data(., ' + AsItemList('OperatorSuitabilities/' + Operators/ActiveOperators/Values + '/VariableCollection/exp_suitability') + ')'"; 
+		attribute<string> 	RouteId: 			expr = "= 'union_data(., ' + AsItemList('OperatorSuitabilities/' + Operators/ActiveOperators/Values + '/VariableCollection/RouteId') + ')'", StorageName = "= CollectionStoragePlace"; 
+		attribute<float32> 	d_OpFlw:			expr = "= 'union_data(., ' + AsItemList('OperatorSuitabilities/' + Operators/ActiveOperators/Values + '/VariableCollection/d_OpFlw') + ')'", StorageName = "= CollectionStoragePlace"; 
+		attribute<float32> 	Costs:				expr = "= 'union_data(., ' + AsItemList('OperatorSuitabilities/' + Operators/ActiveOperators/Values + '/VariableCollection/Costs') + ')'", StorageName = "= CollectionStoragePlace"; 
+	//	attribute<float32>  FlwOnAdd:			expr = "= 'union_data(., ' + AsItemList('OperatorSuitabilities/' + Operators/ActiveOperators/Values + '/VariableCollection/FlwOnAdd') + ')'", StorageName = "= CollectionStoragePlace";  
+	//	attribute<float32>  tBaseFlw:			expr = "= 'union_data(., ' + AsItemList('OperatorSuitabilities/' + Operators/ActiveOperators/Values + '/VariableCollection/tBaseFlw') + ')'", StorageName = "= CollectionStoragePlace";
+//		attribute<float32>  tAddFlw:			expr = "= 'union_data(., ' + AsItemList('OperatorSuitabilities/' + Operators/ActiveOperators/Values + '/VariableCollection/tAddFlw') + ')'", StorageName = "= CollectionStoragePlace";
+		attribute<Operators/Operators> 	OpNum:	expr = "= 'union_data(., ' + AsItemList('OperatorSuitabilities/' + Operators/ActiveOperators/Values + '/VariableCollection/OpNum') + ')'", StorageName = "= CollectionStoragePlace"; 
+		attribute<float32>  opbcr:				expr = "d_OpFlw / Costs", StorageName = "= CollectionStoragePlace"; 
+		attribute<float32>  probability:		expr = "MakeDefined(exp_suitability / totalSuitability, 0f)", StorageName = "= CollectionStoragePlace";
+		attribute<uint32>   sel:				expr = "uint32(id(.) = MostLikelyLink)", StorageName = "= CollectionStoragePlace";
+		
+	}
+	
+	container OperatorSuitabilities: expr = "for_each_ne(Operators/ActiveOperators/Values, 'EvaluationPerOperator(' + string(Operators/ActiveOperators/Operator_id) + ')')";
+	
+	container EvaluationPerOperator: IsTemplate = "True"
+	{
+	
+		parameter<Operators/Operators> InOperator;
+		
+		parameter<SuitabilityDefinitions> OperatorType: expr = "switch("
+			"case(Operators/Operators/State[InOperator] > uint16(0), 2[SuitabilityDefinitions]), "
+			"case(Operators/Operators/Local[InOperator] > uint16(0), 1[SuitabilityDefinitions]), "
+			"0[SuitabilityDefinitions])";
+			
+		unit<uint32> VariableCollection: expr = "AdditionCollection", Using = "SourceData/Economy;"
+		{
+			attribute<string>  Name:			expr = "AdditionCollection/Name";
+			attribute<Operators/Operators> OpNum:	expr = "const(InOperator, ., Operators/Operators)";
+			attribute<bool>    first_alt:		expr = "sel_link = 1";
+			attribute<string>  Label:			expr = "Name", DialogType = "LabelType";
+			attribute<string>  RouteId: 		expr = "AdditionCollection/RouteId";
+			attribute<float32> ConsumerSurplus:	expr = "(float32(0.5)*(dTMin / float32(60))*vtt) + ((dTOrgMin / float32(60))*vtt)";
+			attribute<float32> opbcr_wr50:	expr = "(d_OpFlw * geo_seq50) / Costs";
+			attribute<float32> socbcr_wr50:		expr = "(ConsumerSurplus * geo_seq50) / Costs";
+			attribute<float32> suitability: 	expr = "= SuitabilityDefinitions/EvalSuitability[OperatorType]";
+			attribute<float32> exp_suitability:	expr = "exp(suitability + Random)";
+			attribute<float32> d_OpFlw:			expr = "AdditionCollection/d_OpFlw";
+			attribute<float32> Costs:			expr = "AdditionCollection/Costs";
+			attribute<float32> Length:			expr = "AdditionCollection/Length";
+			attribute<float32> Random:			expr = "rnd_uniform(RunSettings/CurrentInvestment, ., range(float32, float32(0), float32(1))) / float32(10000)";
+		}
+		
+		unit<uint32> AdditionCollection: expr = "PeriodAltSets"
+		{
+			attribute<string>	RouteId: 			expr = "PeriodAltSets/uniqueCode"; //, StorageName = "= CollectionStoragePlace";
+			attribute<string>	Name:				expr = "PeriodAltSets/Values"; //, StorageName = "= CollectionStoragePlace";
+			attribute<string>	Label:				expr = "PeriodAltSets/Values", DialogType = "LabelType";
+			attribute<uint16>	ConstrIn:			expr = "const(RunSettings/OpenYear,.,uint16)"; //, StorageName = "= CollectionStoragePlace";
+			attribute<uint32>	OpNum:				expr = "const(InOperator,.,uint32)"; //, StorageName = "= CollectionStoragePlace";
+			attribute<string>	LineOp:				expr = "Operators/Operators/Name[OpNum]"; //, StorageName = "= CollectionStoragePlace";			
+			attribute<float32>	Costs:				expr = "PeriodAltSets/Costs + CostsPerSoilType/const"; //, StorageName = "= CollectionStoragePlace"; 
+			attribute<float32>	Length:				expr = "PeriodAltSets/length"; //, StorageName = "= CollectionStoragePlace"; 
+			attribute<float32>	B_OpFlw:			expr = "const(BaseNetworkFlows/FlowsPerOperator/RailFlows[InOperator], ., float32)"; //, StorageName = "= CollectionStoragePlace";
+			attribute<float32>	A_OpFlw:			expr = "= 'union_data(., ' + AsItemList('AdditionFlows/' + RouteId + '/FlowsPerOperator/RailFlows[InOperator] + AdditionFlows/' + RouteId + '/AddRailFlows') + ')'"; //, StorageName = "= CollectionStoragePlace";
+			attribute<float32>	d_OpFlw:			expr = "A_OpFlw - B_OpFlw"; //, StorageName = "= CollectionStoragePlace";
+			//attribute<float32>  bTMin:				expr = "const(BaseNetworkFlows/TotMinutes,.,float32)";
+			attribute<float32>  dTMin:				expr = "= 'union_data(., ' + AsItemList('AdditionFlows/' + RouteId + '/dMinPerCapita') + ') * float32(sum(PopulationModels/Population/Population))'"; //, StorageName = "= CollectionStoragePlace";
+			//attribute<float32>  dTMin:				expr = "aTMin - bTMin";
+			attribute<float32>  bTOrgMin:			expr = "const(BaseNetworkFlows/TotOrgMinutes,.,float32)";
+			attribute<float32>  aTOrgMin:			expr = "= 'union_data(., ' + AsItemList('AdditionFlows/' + RouteId + '/TotOrgMinutes') + ')'"; //, StorageName = "= CollectionStoragePlace";
+			attribute<float32>  dTOrgMin:			expr = "bTOrgMin - aTOrgMin";
+		}
+	}
+	
+	parameter<string> NetStoragePlace: expr = "'%projDir%/runs/'+ RunSettings/Scenarios/Name[RunSettings/ScenarioId] +'/decade_net/' + RunSettings/curFile";
+	
+	unit<uint32> chosenAdditionNet: 	  expr = "= !IsNull(MostLikelyLink) ? 'LinkBenefits/getInbetweens/AltRoutes/'+ InvestorsXInvestments/RouteId[MostLikelyLink] +'/route' : 'SourceData/Railroads/Railroads/EmptyNet'";
+	
+	unit<uint32> Ran: StorageName = "= '%ProjDir%/runs/'+ Scenarios/Name[ScenarioId] +'/runtrack.dbf'", ExplicitSuppliers = "StoreInvestmentDecision;InvestorsXInvestments;Alternatives_characteristics;"
+		{
+			attribute<uint32> InvestId:	expr = "const(uint32(RunSettings/CurrentInvestment),.,uint32) + 1";
+			attribute<uint32> Year:		expr = "IsNull(MostLikelyLink) ? const(uint32(RunSettings/InYear) + 10,.,uint32) : "
+				"switch(case(RunSettings/Scenarios/modelRealInvestments[RunSettings/ScenarioId], uint32(SourceData/Railroads/Railroads/Railroad_data/Investments/OpenYear)[RunSettings/CurrentInvestment + 1]),"
+				"const(uint32(RunSettings/OpenYear) + params/yearsBetweenInvestments,.,uint32))";
+		}
+		
+	unit<uint32> SuitabilityDefinitions: expr = "DecisionParams/SuitabilityDefinitions"
+	{
+		attribute<String> Label: 			['Private trunk line', 'Private local line', 'State line'];
+		attribute<String> EvalSuitability:  expr = "subitem(DecisionParams/SuitabilityDefinitions, RunSettings/Scenarios/InvestmentSelection[RunSettings/ScenarioId])";
+	}	
+		
+	unit<uint32> StoreInvestmentDecision: 
+		expr = "union_unit(StartNet/RailNetwork, chosenAdditionNet)",
+		StorageName = "= NetStoragePlace + '.dbf'",
+		DialogData = "line",
+		DialogType = "map"
+	{
+		attribute<point_rd> line (arc): expr = "union_data(.,StartNet/RailNetwork/line, chosenAdditionNet/line)", StorageName = "= NetStoragePlace + '.shp'";
+		attribute<uint16>	IsRail:		expr = "union_data(.,StartNet/RailNetwork/IsRail, uint16(chosenAdditionNet/IsRail))";
+		attribute<uint16>   OpNum:		expr = "union_data(.,StartNet/RailNetwork/OpNum, const(InvestorsXInvestments/OpNum[MostLikelyLink],chosenAdditionNet,uint16))";
+		attribute<uint32>   InvestId:	expr = "union_data(.,StartNet/RailNetwork/InvestId, const(uint32(RunSettings/CurrentInvestment),chosenAdditionNet,uint32))";
+		attribute<uint16>	Year:		expr = "union_data(.,StartNet/RailNetwork/Year, const(uint16(RunSettings/OpenYear),chosenAdditionNet,uint16))";
+		attribute<m>  		length: 	expr = "arc_length(line, m)";
+		attribute<float32>  Costs:		expr = "union_data(.,StartNet/RailNetwork/Costs, chosenAdditionNet/Costs)";
+		attribute<s>		Seconds: 	expr = "bool(IsRail) ? length / params/TrainSpeed : length / params/WalkSpeed";
+		
+	}
+	
+	container BaseNetworkFlows: expr = "summarizeStoredFlows(BaseFlows/NetworkLocation, BaseFlows/RouteId)";
+	
+	unit<uint32> Alternatives_characteristics: expr = "PeriodAltSets", StorageName = "= AltCharacteristicsPlace"
+	{
+		attribute<string>  Name: 			expr = "PeriodAltSets/Values";
+		attribute<string>  RouteId:			expr = "PeriodAltSets/uniqueCode";
+		attribute<bool>	   first_alt: 		expr = "sel_link = 1";
+		attribute<uint32>  sel:				expr = "uint32(!IsNull(rlookup(RouteId, InvestorsXInvestments/sel > 0 ? InvestorsXInvestments/RouteId : '')))";
+		attribute<float32> btMinPerCap:		expr = "const(BaseNetworkFlows/tMinPerCapita,.,float32)"; ///InvestmentDecision/BaseNetworkFlows/tMinPerCapita
+		attribute<float32> atMinPerCap:		expr = "= 'union_data(.,'+ AsItemList('InvestmentDecision/AdditionFlows/'+ PeriodAltSets/uniqueCode +'/tMinPerCapita') + ')'";
+		attribute<float32> brMinPerCap:		expr = "const(BaseNetworkFlows/rMinPerCapita,.,float32)"; ///InvestmentDecision/BaseNetworkFlows/tMinPerCapita
+		attribute<float32> arMinPerCap:		expr = "= 'union_data(.,'+ AsItemList('InvestmentDecision/AdditionFlows/'+ PeriodAltSets/uniqueCode +'/rMinPerCapita') + ')'";
+		attribute<float32> btOrgMinPerCap:	expr = "const(BaseNetworkFlows/tOrgMinPerCapita,.,float32)"; ///InvestmentDecision/BaseNetworkFlows/tMinPerCapita
+		attribute<float32> atOrgMinPerCap:	expr = "= 'union_data(.,'+ AsItemList('InvestmentDecision/AdditionFlows/'+ PeriodAltSets/uniqueCode +'/tOrgMinPerCapita') + ')'";
+		attribute<float32> brOrgMinPerCap:	expr = "const(BaseNetworkFlows/rOrgMinPerCapita,.,float32)"; ///InvestmentDecision/BaseNetworkFlows/tMinPerCapita
+		attribute<float32> arOrgMinPerCap:	expr = "= 'union_data(.,'+ AsItemList('InvestmentDecision/AdditionFlows/'+ PeriodAltSets/uniqueCode +'/rOrgMinPerCapita') + ')'";
+		attribute<float32> atdMinPerCap:	expr = "= 'union_data(.,'+ AsItemList('InvestmentDecision/AdditionFlows/'+ PeriodAltSets/uniqueCode +'/dMinPerCapita') + ')'";
+		attribute<float32> ardMinPerCap:	expr = "= 'union_data(.,'+ AsItemList('InvestmentDecision/AdditionFlows/'+ PeriodAltSets/uniqueCode +'/dRMinPerCapita') + ')'";
+		attribute<float32> bTotFlows: 		expr = "const(BaseNetworkFlows/TotFlows,.,float32)";
+		attribute<float32> aTotFlows: 		expr = "= 'union_data(.,'+ AsItemList('InvestmentDecision/AdditionFlows/'+ PeriodAltSets/uniqueCode +'/TotFlows') + ')'";
+		attribute<float32> bRailFlows:  	expr = "const(BaseNetworkFlows/RailFlows,.,float32)";
+		attribute<float32> aRailFlows: 		expr = "= 'union_data(.,'+ AsItemList('InvestmentDecision/AdditionFlows/'+ PeriodAltSets/uniqueCode +'/RailFlows') + ')'";
+		attribute<float32> FlwOnAdd: 		expr = "= 'union_data(.,'+ AsItemList('InvestmentDecision/AdditionFlows/'+ PeriodAltSets/uniqueCode +'/AddRailFlows') + ')'";
+		attribute<float32> aMaxLen:			expr = "= 'float32(union_data(.,'+ AsItemList('InvestmentDecision/AdditionFlows/'+ PeriodAltSets/uniqueCode +'/NetworkDiameter') + '))'";
+		attribute<float32> bt_acc:			expr = "const(BaseFlows/AccessibilityLevels/theil, ., float32)";
+		attribute<float32> bs_acc:			expr = "const(BaseFlows/AccessibilityLevels/summed_access, ., float32)"; //, StorageName = "= CollectionStoragePlace";
+		attribute<float32> at_acc:			expr = "= 'union_data(.,'+ AsItemList('PotentialAdditions/AccessibilityLevels/' + getInbetweens/PeriodAltSets/uniqueCode + '/theil')+ ')'";
+		attribute<float32> as_acc:			expr = "= 'union_data(.,'+ AsItemList('PotentialAdditions/AccessibilityLevels/' + getInbetweens/PeriodAltSets/uniqueCode + '/summed_access') +')'";
+		attribute<float32> bLen:			expr = "const(sum(float32(StartNet/RailNetwork/IsRail) * float32(StartNet/RailNetwork/Length)),.,float32)";
+		attribute<float32> aLen:			expr = "PeriodAltSets/RailLength";
+		attribute<float32> aCosts:			expr = "PeriodAltSets/Costs +  CostsPerSoilType/const";
+//		attribute<uint16>  Haven:			expr = "PeriodAltSets/Haven"; //, StorageName = "= CollectionStoragePlace";
+	//	attribute<uint16>	ProvHoofd:		expr = "PeriodAltSets/ProvHoofd"; //, StorageName = "= CollectionStoragePlace";
+		//attribute<uint16>	BorderZone:		expr = "PeriodAltSets/BorderZone";
+		//attribute<int16>	NewCapConn:		expr = "operator_characteristics/NewCapConn";
+		//attribute<uint16>  getconns:		expr = "operator_characteristics/getconns";
+		
+		attribute<float32>	B_OpFlw:		expr = "operator_characteristics/B_OpFlw";
+		//attribute<float32>  B_OthFlw:		expr = "operator_characteristics/B_OthFlw";
+		attribute<float32>	A_OpFlw:		expr = "operator_characteristics/A_OpFlw";
+		//attribute<float32>  A_OthFlw:		expr = "operator_characteristics/A_OthFlw";
+		attribute<float32>	d_OpFlw:		expr = "A_OpFlw - B_OpFlw"; 
+		//attribute<float32>  d_OthFlw:		expr = "A_OthFlw - B_OthFlw";
+		
+		//attribute<float32>	own_net:		expr = "operator_characteristics/own_net";
+		//attribute<float32>	any_net:		expr = "operator_characteristics/any_net";
+		
+		unit<uint32> operator_characteristics: expr = "= 'InvestmentDecision/OperatorSuitabilities/'+ Operators/Operators/Name[MostLikelyInvestor] +'/AdditionCollection'";
+		
+	}
+	
+	
+	
+	container AdditionFlows: expr = "for_each_ne(PeriodAltSets/uniqueCode, "
+		"'summarizeStoredFlows(PotentialAdditions/RouteFlows/' + PeriodAltSets/uniqueCode + '/NetworkLocation, "
+		"PotentialAdditions/RouteFlows/' + PeriodAltSets/uniqueCode + '/RouteId)')";		
+	
+	
+
+
+} 
