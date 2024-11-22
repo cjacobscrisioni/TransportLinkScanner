@@ -23,11 +23,12 @@ Container SimpleDecisionEvaluator: Using = "RunSettings;"
 	{
 		attribute<point_rd> line (arc): expr = "union_data(.,StartNet/RailNetwork/line, chosenAdditionNet/line)", StorageName = "= NetStoragePlace + '.shp'";
 		attribute<uint16>	IsRail:		expr = "union_data(.,StartNet/RailNetwork/IsRail, uint16(chosenAdditionNet/isRail))";
-		attribute<uint16>   OpNum:		expr = "union_data(.,StartNet/RailNetwork/OpNum, const(RandomOperator,chosenAdditionNet,uint16))";
+		attribute<uint32>   OpNum:		expr = "union_data(.,StartNet/RailNetwork/OpNum, const(RandomOperator,chosenAdditionNet,uint32))";
 		attribute<uint32>   InvestId:	expr = "union_data(.,StartNet/RailNetwork/InvestId, const(uint32(RunSettings/CurrentInvestment),chosenAdditionNet,uint32))";
 		attribute<uint16>	Year:		expr = "union_data(.,StartNet/RailNetwork/Year, const(uint16(RunSettings/OpenYear),chosenAdditionNet,uint16))";
 		attribute<m>  		length: 	expr = "arc_length(line, m)";
 		attribute<float32>  Costs:		expr = "union_data(.,StartNet/RailNetwork/Costs, chosenAdditionNet/Costs)";
-		attribute<s>		Seconds: 	expr = "bool(IsRail) ? length / params/TrainSpeed : length / params/WalkSpeed";	
+		attribute<LinkTypes>linktype:= 	switch(case(!bool(IsRail), 0[LinkTypes]), case(bool(Operators/Operators/State)[OpNum], 2[LinkTypes]), case(bool(Operators/Operators/Local)[OpNum], 3[LinkTypes]), 1[LinkTypes]);
+		attribute<s>		Seconds:=	length / LinkTypes/speeds[linktype];
 	}
 }

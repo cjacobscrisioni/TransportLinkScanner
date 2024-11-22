@@ -383,7 +383,7 @@ Container PopulationModels: Using = "Units;" {
 		attribute<bool> LinesAreSignedIntegerStringOrEmpy (Domain) := 
 			  regex_match(BodyLines,'(-?+[0-9]++|\"[^\"]*+\")?+(;(-?+[0-9]++|\"[^\"]*+\")?+)*+');
 				
-		container Data := for_each_nedv(Field/Name,'ReadElems(BodyLines,string,'+ MakeDefined(Field/Name[ID(Field)-1]+'/ReadPos','const(0,Domain)')+')',Domain,string);
+		container Data := for_each_nedv(Field/Name,'ReadElems(BodyLines,string,'+ MakeDefined(Field/Name[sub_or_null(ID(Field), 1)]+'/ReadPos','const(0,Domain)')+')',Domain,string);
 				
 		attribute<Domain> DomainRefField (TargetUnit): expr = "= 'rlookup(string(id(TargetUnit)), trim(UpperCase(Data/'+ ZoneIdField +')))'";
 		

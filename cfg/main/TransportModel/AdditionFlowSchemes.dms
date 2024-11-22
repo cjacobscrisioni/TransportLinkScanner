@@ -222,7 +222,7 @@ Container AdditionFlowSchemes: using = "getInbetweens;PopulationModels;params;"
 	Template doAllocateFlows {
 		unit<uint32> Network;
 		unit<uint32> FlowMatrix;
-		unit<uint32> BaseMatrix: expr = "FlowMatrix";
+		unit<uint32> BaseMatrix: expr = "FlowMatrix" {attribute<float32> BaseImpedance:= Impedance; attribute<float32> BaseFlow:= Tij;}
 		
 		unit<uint32> Zones: expr = "PopulationModels/Population";
 	

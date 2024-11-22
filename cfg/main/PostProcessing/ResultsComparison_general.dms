@@ -37,8 +37,8 @@ container ResultsComparison_general: using = "Units;SourceData;"
 	
 	unit<uint32> Inv_x_Ot:	expr = "combine(Investments, OperatorTypes)"
 	{
-		attribute<string> inv_name: expr = "Investments/inv_count[Nr_1]";
-		attribute<string> ot_name: 	expr = "OperatorTypes/Short[Nr_2]";
+		attribute<string> inv_name: expr = "Investments/inv_count[first_rel]";
+		attribute<string> ot_name: 	expr = "OperatorTypes/Short[second_rel]";
 		attribute<string> unique:	expr = "inv_name + '_x_' + ot_name";
 	}
 	
@@ -49,27 +49,27 @@ container ResultsComparison_general: using = "Units;SourceData;"
 	
 		unit<uint32> proto_od_matrix: expr = "combine(PopulationModels/Population, PopulationModels/Population)"
 		{
-			attribute<PopulationModels/Population> i: 		expr = "nr_1";
-			attribute<PopulationModels/Population> j:			expr = "nr_2";
-			attribute<upoint>uni_id: 	expr = "point(i, j, upoint)", ExplicitSuppliers = "nr_1;nr_2"; //;nr_1;nr_2";
+			attribute<PopulationModels/Population> i: 		expr = "first_rel";
+			attribute<PopulationModels/Population> j:			expr = "second_rel";
+			attribute<upoint>uni_id: 	expr = "point(i, j, upoint)", ExplicitSuppliers = "first_rel;second_rel"; //;first_rel;second_rel";
 		}
 	}
 	
-/*	container AnalysisPerInvestmentPerOperatorType: expr = "for_each_ne(Inv_x_Ot/unique, 'getAnalysisPerInvestment('+ string(Inv_x_Ot/Nr_1) +','+ string(Inv_x_Ot/Nr_2) +')')"
+/*	container AnalysisPerInvestmentPerOperatorType: expr = "for_each_ne(Inv_x_Ot/unique, 'getAnalysisPerInvestment('+ string(Inv_x_Ot/first_rel) +','+ string(Inv_x_Ot/second_rel) +')')"
 	{
 		unit<uint32> proto_od_matrix: expr = "combine(PopulationModels/Population, PopulationModels/Population)"
 		{
-			attribute<PopulationModels/Population> i: 		expr = "nr_1";
-			attribute<PopulationModels/Population> j:			expr = "nr_2";
-			attribute<upoint>uni_id: 	expr = "point(i, j, upoint)", ExplicitSuppliers = "nr_1;nr_2";
+			attribute<PopulationModels/Population> i: 		expr = "first_rel";
+			attribute<PopulationModels/Population> j:			expr = "second_rel";
+			attribute<upoint>uni_id: 	expr = "point(i, j, upoint)", ExplicitSuppliers = "first_rel;second_rel";
 		}
 	}*/
 	
 	
 	unit<uint32> CompileNetworkAllocationResults: expr = "combine(AllEvaluatedScenarios, Investments)"
 	{
-		attribute<string> scName: expr = "AllEvaluatedScenarios/Name[nr_1]";
-		attribute<string> invName:expr = "Investments/inv_count[nr_2]";
+		attribute<string> scName: expr = "AllEvaluatedScenarios/Name[first_rel]";
+		attribute<string> invName:expr = "Investments/inv_count[second_rel]";
 		
 		attribute<float32> length:		expr = "= 'union_data(.,  '+ AsItemList('AnalysisPerInvestment/' + invName + '/net_evaluation/lengths/' + scName) +')'";
 		attribute<float32> costs:		expr = "= 'union_data(.,  '+ AsItemList('AnalysisPerInvestment/' + invName + '/net_evaluation/costs/' + scName) +')'";
@@ -87,13 +87,13 @@ container ResultsComparison_general: using = "Units;SourceData;"
 	}
 	unit<uint32> CompileNetworkAllocationResultsPerOperatorType: expr = "combine(AllEvaluatedScenarios, Inv_x_Ot)"
 	{
-		attribute<string> scName: 	expr = "AllEvaluatedScenarios/Name[nr_1]";
-		attribute<string> inv:		expr = "Inv_x_Ot/inv_name[nr_2]";
-		attribute<uint32> invn:		expr = "Inv_x_Ot/nr_1[nr_2]";
+		attribute<string> scName: 	expr = "AllEvaluatedScenarios/Name[first_rel]";
+		attribute<string> inv:		expr = "Inv_x_Ot/inv_name[second_rel]";
+		attribute<uint32> invn:		expr = "Inv_x_Ot/first_rel[second_rel]";
 		
 		// accuracy indicators below are currently throwing an error.
-		/*attribute<string> ot:		expr = "Inv_x_Ot/ot_name[nr_2]";
-		attribute<string> unique:	expr = "Inv_x_Ot/unique[nr_2]";
+		/*attribute<string> ot:		expr = "Inv_x_Ot/ot_name[second_rel]";
+		attribute<string> unique:	expr = "Inv_x_Ot/unique[second_rel]";
 		attribute<float32> length:		expr = "= 'union_data(.,  '+ AsItemList('AnalysisPerInvestmentPerOperatorType/' + unique + '/net_evaluation/lengths/' + scName) +')'";
 		attribute<float32> costs:		expr = "= 'union_data(.,  '+ AsItemList('AnalysisPerInvestmentPerOperatorType/' + unique + '/net_evaluation/costs/' + scName) +')'";
 		attribute<uint32>  n_conn:		expr = "= 'union_data(.,  '+ AsItemList('AnalysisPerInvestmentPerOperatorType/' + unique + '/zone_evaluation/connected/' + scName) +')'";
