@@ -1,6 +1,6 @@
 Container HistoricNet_ResultsCumulation: using = "RunSettings;SourceData;ResultsComparison_general/AlternativeCharacteristics;/SourceData/Railroads/Railroads/Railroad_data;" {
 	
-	parameter<ScenariosRan> s_id:= rlookup('calib_elastic', ScenariosRan/Name);
+	parameter<ScenariosRan> s_id:= rlookup('calib_elastic_speed_inc_local_speed', ScenariosRan/Name);
 	parameter<uint32> n_invest:= 68;
 	
 	unit<uint32> op_type: nrofrows = 3 {

@@ -50,9 +50,9 @@ Container InvestmentDecision: Using = "RunSettings;LinkBenefits/calcBenefits;Lin
 			attribute<bool>    first_alt:		expr = "sel_link = 1";
 			attribute<string>  Label:			expr = "Name", DialogType = "LabelType";
 			attribute<string>  RouteId: 		expr = "AdditionCollection/RouteId";
-			attribute<float32> ConsumerSurplus:	expr = "(float32(0.5)*(dTMin / float32(60))*vtt) + ((dTOrgMin / float32(60))*vtt)";
-			attribute<float32> opbcr_wr50:	expr = "(d_OpFlw * geo_seq50) / Costs";
-			attribute<float32> socbcr_wr50:		expr = "(ConsumerSurplus * geo_seq50) / Costs";
+			//attribute<float32> ConsumerSurplus:	expr = "(float32(0.5)*(dTMin / float32(60))*vtt) + ((dTOrgMin / float32(60))*vtt)";
+			//attribute<float32> opbcr_wr50:	expr = "(d_OpFlw * geo_seq50) / Costs";
+			//attribute<float32> socbcr_wr50:		expr = "(ConsumerSurplus * geo_seq50) / Costs";
 			attribute<float32> suitability: 	expr = "= SuitabilityDefinitions/EvalSuitability[OperatorType]";
 			attribute<float32> exp_suitability:	expr = "exp(suitability + Random)";
 			attribute<float32> d_OpFlw:			expr = "AdditionCollection/d_OpFlw";
@@ -64,8 +64,8 @@ Container InvestmentDecision: Using = "RunSettings;LinkBenefits/calcBenefits;Lin
 		unit<uint32> AdditionCollection: expr = "PeriodAltSets"
 		{
 			attribute<string>	RouteId: 			expr = "PeriodAltSets/uniqueCode"; //, StorageName = "= CollectionStoragePlace";
-			attribute<string>	Name:				expr = "PeriodAltSets/Values"; //, StorageName = "= CollectionStoragePlace";
-			attribute<string>	Label:				expr = "PeriodAltSets/Values", DialogType = "LabelType";
+			attribute<string>	Name:				expr = "string(PeriodAltSets/Values)"; //, StorageName = "= CollectionStoragePlace";
+			attribute<string>	Label:				expr = "Name", DialogType = "LabelType";
 			attribute<uint16>	ConstrIn:			expr = "const(RunSettings/OpenYear,.,uint16)"; //, StorageName = "= CollectionStoragePlace";
 			attribute<uint32>	OpNum:				expr = "const(InOperator,.,uint32)"; //, StorageName = "= CollectionStoragePlace";
 			attribute<string>	LineOp:				expr = "Operators/Operators/Name[OpNum]"; //, StorageName = "= CollectionStoragePlace";			
@@ -109,12 +109,13 @@ Container InvestmentDecision: Using = "RunSettings;LinkBenefits/calcBenefits;Lin
 	{
 		attribute<point_rd> line (arc): expr = "union_data(.,StartNet/RailNetwork/line, chosenAdditionNet/line)", StorageName = "= NetStoragePlace + '.shp'";
 		attribute<uint16>	IsRail:		expr = "union_data(.,StartNet/RailNetwork/IsRail, uint16(chosenAdditionNet/IsRail))";
-		attribute<uint16>   OpNum:		expr = "union_data(.,StartNet/RailNetwork/OpNum, const(InvestorsXInvestments/OpNum[MostLikelyLink],chosenAdditionNet,uint16))";
+		attribute<uint16>   OpNum:		expr = "union_data(.,StartNet/RailNetwork/OpNum[uint16], const(MostLikelyInvestor,chosenAdditionNet,uint16))";
 		attribute<uint32>   InvestId:	expr = "union_data(.,StartNet/RailNetwork/InvestId, const(uint32(RunSettings/CurrentInvestment),chosenAdditionNet,uint32))";
 		attribute<uint16>	Year:		expr = "union_data(.,StartNet/RailNetwork/Year, const(uint16(RunSettings/OpenYear),chosenAdditionNet,uint16))";
 		attribute<m>  		length: 	expr = "arc_length(line, m)";
 		attribute<float32>  Costs:		expr = "union_data(.,StartNet/RailNetwork/Costs, chosenAdditionNet/Costs)";
-		attribute<s>		Seconds: 	expr = "bool(IsRail) ? length / params/TrainSpeed : length / params/WalkSpeed";
+		attribute<s>		Seconds: 	expr = "union_data(., StartNet/RailNetwork/Seconds, chosenAdditionNet/Seconds)";
+		attribute<LinkTypes>LinkType:   expr = "union_data(., StartNet/RailNetwork/LinkType, chosenAdditionNet/LinkType)";
 		
 	}
 	
@@ -122,7 +123,7 @@ Container InvestmentDecision: Using = "RunSettings;LinkBenefits/calcBenefits;Lin
 	
 	unit<uint32> Alternatives_characteristics: expr = "PeriodAltSets", StorageName = "= AltCharacteristicsPlace"
 	{
-		attribute<string>  Name: 			expr = "PeriodAltSets/Values";
+		attribute<string>  Name: 			expr = "string(PeriodAltSets/Values)";
 		attribute<string>  RouteId:			expr = "PeriodAltSets/uniqueCode";
 		attribute<bool>	   first_alt: 		expr = "sel_link = 1";
 		attribute<uint32>  sel:				expr = "uint32(!IsNull(rlookup(RouteId, InvestorsXInvestments/sel > 0 ? InvestorsXInvestments/RouteId : '')))";

@@ -86,8 +86,8 @@ container Units
 	
 	unit<uint32> Soils: nrOfRows = 9
 	{
-		attribute<string> 	Name: 		['Water of Buitenland', 'Veen', 'Zand', 'Lichte zavel?', 'Lichte klei?', 'Zware zavel?', 'Zware klei', 'Leem en Loess', 'Grind'];
-		attribute<uint8>	Type:		[2, 1, 0, 0, 1, 0, 1, 0, 0];
+		attribute<string> 	Name: 		['Water of Buitenland', 'Veen', 'Zand', 'Kleiig zand (zavel)', 'Rivierklei', 'Klei op veen', 'Zwak en matig kleiiend zand', 'Leem en Loess', 'Grind'];
+		attribute<uint8>	Type:		[2, 1, 0, 1, 1, 1, 1, 0, 0];
 		attribute<string> 	Label:		expr = "Name";
 		attribute<string> 	net_id:		expr = "id(.) < max(id(.)) ? 's_' + string(id(Soils)) : 's_' + string(sub_or_null(id(Soils), 1))";
 		attribute<string>   exec:		expr = "Soils/Type = uint8(2) ? 'water' 	 : '(length - water) 	  * (' + net_id + ' / length)'";

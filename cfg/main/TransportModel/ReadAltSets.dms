@@ -6,33 +6,32 @@ container getInbetweens: Using = "Units;PopulationModels;params;"
 	parameter<Operators/Operators> OpNum:= RunSettings/Scenarios/modelRealInvestments[RunSettings/ScenarioId] ? rlookup(SourceData/Railroads/RealInvestmentConstructor/opid, Operators/Operators/RealOperator_id) : max_index(Operators/Operators/random);
 
 	unit<uint32> PeriodAltlines: 
-		StorageName = "= ResultsCollection_StoragePlace +'.dbf'",
-		DialogData      = "line",
-		DialogType      = "Map",
-		SyncMode        = "none",
-		StorageReadOnly = "True"
+		StorageName = "= ResultsCollection_StoragePlace +'.shp'",
+		storagetype = "gdal.vect",
+ 		StorageReadOnly = "True"
 	{
-		attribute<point_rd> line (arc): StorageName = "= ResultsCollection_StoragePlace + '.shp'", StorageReadOnly = "True";
+		attribute<point_rd> Geometry (arc);
+		attribute<point_rd> line (arc):= Geometry;
 		attribute<float32>  Costs;
 		attribute<float32>  Length;
-		attribute<string> 	Altid;
+		attribute<uint32> 	Altid;
 		attribute<string> 	Label;
 		attribute<uint32> 	LinkType;
 		attribute<uint32> 	sel_link;
 		attribute<PeriodAltSets> PeriodAltSet_id: expr = "rlookup(Altid, PeriodAltSets/Values)";
 		attribute<float32>  AccountedCosts: expr = "LinkType < 2 ? Costs: float32(0)";
+		attribute<float32>  CostsPmt:= Costs / Length;
 	}
 	
 	unit<uint32> PeriodAltSets: expr = "unique(periodAltlines/Altid)"
 	{
-		attribute<string> 	Values;
 		attribute<string> 	uniqueCode:			expr = "'alt_' + string(id(.))";
 		attribute<uint32> 	maxLinkType: 		expr = "max(periodAltlines/LinkType, periodAltlines/PeriodAltSet_id)";
 		attribute<float32> 	Costs: 				expr = "sum(periodAltlines/AccountedCosts, periodAltlines/PeriodAltSet_id)";
 		attribute<float32> 	Length: 			expr = "sum(periodAltlines/Length, periodAltlines/PeriodAltSet_id)";
 		attribute<float32>  RailLength:			expr = "sum(float32(periodAltlines/LinkType = 0) * periodAltlines/Length, periodAltlines/PeriodAltSet_id)";
 		attribute<bool>	  	UsesExistingTrack: 	expr = "maxLinkType = 4";
-		attribute<bool>		NextPeriodProject:	expr = "!IsNull(strpos(Values, 'Concessie'))";
+		attribute<bool>		NextPeriodProject:	expr = "!IsNull(strpos(string(Values), 'Concessie'))";
 		attribute<uint32>	sel_link:			expr = "max(periodAltlines/sel_link, periodAltLines/PeriodAltSet_id)";
 		
 		parameter<string> string_f_cpo: expr = "'union_data(PeriodAltSets,'+ AsItemList('AltRoutes/'+ uniqueCode +'/inroute/OperatorConnection/OperatorName') +')'";
@@ -50,9 +49,9 @@ container getInbetweens: Using = "Units;PopulationModels;params;"
 	Container getAltRoute: IsTemplate = "True"
 	{
 		parameter<uint32> inPeriodAltSet;
-		parameter<string> routename: expr = "PeriodAltSets/Values[inPeriodAltSet]";
+		parameter<string> routename: expr = "string(PeriodAltSets/Values[inPeriodAltSet])";
 		
-		unit<uint32> inroute: expr = "subset(PeriodAltLines/PeriodAltSet_id = inPeriodAltSet && PeriodAltLines/LinkType <> 4)", DialogData = "line", DialogType = "map"
+		unit<uint32> inroute: expr = "subset(PeriodAltLines/PeriodAltSet_id = inPeriodAltSet && PeriodAltLines/LinkType = 0)", DialogData = "line", DialogType = "map"
 		{
 			attribute<point_rd> line (arc): expr = "PeriodAltLines/line[nr_OrgEntity]";
 			attribute<float32>  Costs:		expr = "PeriodAltLines/AccountedCosts[nr_OrgEntity]";
@@ -91,8 +90,8 @@ container getInbetweens: Using = "Units;PopulationModels;params;"
 		{
 			attribute<point_rd> line (arc): expr = "UnionData";
 			attribute<float32>	Costs:		expr = "MakeDefined(inroute/costs[Nr_OrgEntity], float32(0))";
-			attribute<uint32>	LinkType:	expr = "MakeDefined(inroute/LinkType[Nr_OrgEntity], 2)";
-			attribute<bool>		isRail:		expr = "LinkType < 2 || Linktype = 4";
+			attribute<LinkTypes>linktype:= 	switch(case(!bool(IsRail), 0[LinkTypes]), case(bool(Operators/Operators/State)[OpNum], 2[LinkTypes]), case(bool(Operators/Operators/Local)[OpNum], 3[LinkTypes]), 1[LinkTypes]);
+			attribute<bool>		isRail:		expr = "isdefined(nr_OrgEntity) ? True : False";
 			attribute<bool> 	isBridge:	expr = "const(false, ., bool)";
 			attribute<bool>		isAddition: expr = "const(True, ., bool)";
 			attribute<Operators/Operators>	OperatorId:	expr = "const(OpNum,.,Operators/Operators)";

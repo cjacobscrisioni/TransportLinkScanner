@@ -541,12 +541,12 @@ container SourceData: Using ="Units;params;PopulationModels;"
 		container pop_theil_indices: expr = "for_each_nedv(years/fieldname, 'mean((float32(Zones/'+ years/fieldname +') / mean_pop/'+ years/fieldname +') * float32(log(float32(Zones/'+ years/fieldname +') / mean_pop/'+ years/fieldname +')))', void, float32)";
 		
 	}
-	unit<uint32> soiltypes:		StorageName = "%dataDir%/costgrids/soil_basis_polygon.shp", storagetype = "gdal.vect", StorageReadOnly = "True", DialogData = "poly", DialogType = "Map"
+	unit<uint32> soiltypes:		StorageName = "%dataDir%/costgrids/soil_basis_polygon.shp", storagetype = "gdal.vect", StorageReadOnly = "True"
 	{
 		attribute<point_rd> Geometry (poly);
 		attribute<Soils>	GridCode;
 	}
-	unit<uint32> nowater: StorageName = "%dataDir%/costgrids/nowater.shp", storagetype = "gdal.vect", StorageReadOnly = "True", DialogData = "poly", DialogType = "Map" {attribute<point_rd> Geometry (poly);}
+	unit<uint32> nowater: StorageName = "%dataDir%/costgrids/nowater.shp", storagetype = "gdal.vect", StorageReadOnly = "True" {attribute<point_rd> Geometry (poly);}
 	
 	unit<wpoint> CostsGrid: StorageName = "%dataDir%/costgrids/soil_basis_michielvaneupen.tif", StorageReadOnly = "True", StorageType = "gdal.grid", DialogData = "point_rd" {
 		attribute<uint8> 				GridData;

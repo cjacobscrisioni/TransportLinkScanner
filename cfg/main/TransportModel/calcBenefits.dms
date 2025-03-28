@@ -5,6 +5,8 @@ container calcBenefits: using = "getInbetweens;PopulationModels;AdditionFlowSche
 	container calcAllTrigger
 	{
 		parameter<bool> CalcAll: expr = "True", ExplicitSuppliers = "= 'BaseFlows/TotalFlows/Flows;' + AsList('PotentialAdditions/RouteFlows/'+getInbetweens/PeriodAltSets/uniqueCode+'/TotalFlows/store_all',';')";
+		parameter<bool> CalcBase: expr = "True", ExplicitSuppliers = "BaseFlows/TotalFlows/Flows";
+		parameter<bool> Store_Operators:= True, ExplicitSuppliers = "= AsList('PotentialAdditions/RouteFlows/'+getInbetweens/PeriodAltSets/uniqueCode+'/TotalFlows/Flows/opid', ';')";
 	}
 	container BaseFlows
 	{

@@ -4,7 +4,7 @@ Container DecisionParams
 	{
 		attribute<String> Label: 			['Private trunk line', 'Private local line', 'State line'];
 		attribute<String> Short:			['priv_trunk', 'priv_loc', 'state'];
-		attribute<string> calib: expr = "const('float32(first_alt) * float32(10) * float32(InOperator = SourceData/Railroads/Railroads/Railroad_data/Investments/Operator[RunSettings/CurrentInvestment] + 1)',.,string)";
+		attribute<string> calib: expr = "const('float32(first_alt) * float32(10) * float32(Operators/Operators/RealOperator_id[InOperator] = SourceData/Railroads/Railroads/Railroad_data/Investments/Operator[RunSettings/CurrentInvestment])',.,string)";
 		attribute<string> hist_no_Alonso: 	expr = "const('const(1,.,float32)',.,string)";
 		attribute<string> hist_w_Alonso: 	expr = "hist_no_Alonso";
 		attribute<string> calib_no_Alonso: 	expr = "calib";

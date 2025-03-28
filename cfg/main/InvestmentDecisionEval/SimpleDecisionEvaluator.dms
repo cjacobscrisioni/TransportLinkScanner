@@ -3,7 +3,7 @@ Container SimpleDecisionEvaluator: Using = "RunSettings;"
 	
 	container AltLink: expr = "LinkBenefits/getInbetweens/getAltRoute(0)";
 
-	unit<uint32> Ran: StorageName = "= '%ProjDir%/runs/'+ Scenarios/Name[ScenarioId] +'/runtrack.dbf'", ExplicitSuppliers = "StoreInvestment;"
+	unit<uint32> Ran: StorageName = "= '%ProjDir%/runs/'+ Scenarios/Name[ScenarioId] +'/runtrack.dbf'", ExplicitSuppliers = "StoreInvestment;Alternatives_characteristics;"
 	{
 		attribute<uint32> InvestId:	expr = "const(uint32(RunSettings/CurrentInvestment),.,uint32) + 1";
 		attribute<uint32> Year:		expr = "const(uint32(RunSettings/OpenYear) + params/yearsBetweenInvestments,.,uint32)";

@@ -108,13 +108,14 @@ Container AdditionFlowSchemes: using = "getInbetweens;PopulationModels;params;"
 			attribute<uint32> 	id: 			expr = "id(Network)";		
 			attribute<point_rd> UnionData(arc): expr = "union_data(Network, BaseNetwork/UnionData, NetworkAddition/line)";
 			attribute<point_rd> Line (arc):		expr = "UnionData";
-			attribute<s>       	Seconds: 		expr = "union_data(Network, BaseNetwork/Seconds, NetworkAddition/Seconds)";
+			attribute<s>       	Seconds: 		expr = "!ConnectsRail ? union_data(Network, BaseNetwork/Seconds, NetworkAddition/Seconds) : Params/WaitingSeconds / 2f";
 			attribute<float32>	Minutes:		expr = "Seconds / float32(60)";
 			attribute<float32>	Km:				expr = "arc_length(UnionData, float32) / 1000f";
 			attribute<point_rd> first_point: 	expr = "first_point(UnionData)";
 			attribute<point_rd> last_point:  	expr = "last_point(UnionData)";	
 			attribute<m>       	length: 		expr = "arc_length(UnionData, m)";
 			attribute<bool>		IsRail:			expr = "union_data(Network, BaseNetwork/IsRail, NetworkAddition/IsRail)";
+			attribute<bool>		ConnectsRail:= (NodeSet/ConnectsRail[F1] || NodeSet/ConnectsRail[F2]) && !IsRail;
 			//attribute<bool>		IsBridge:		expr = "union_data(Network, BaseNetwork/IsBridge, NetworkAddition/IsBridge)";
 			attribute<bool>		IsAddition:		expr = "union_data(Network, BaseNetwork/IsAddition, NetworkAddition/IsAddition)";
 			attribute<uint32>	OperatorId:		expr = "union_data(Network, BaseNetwork/OperatorId, NetworkAddition/OperatorId)";	
@@ -125,7 +126,7 @@ Container AdditionFlowSchemes: using = "getInbetweens;PopulationModels;params;"
 			{attribute<point_rd> 		point:   expr = "union_data(PointSet, Network/first_point, Network/last_point)";}
 			
 			unit<uint32> NodeSet: expr       = "unique(PointSet/point)", DialogData = "Values", DialogType = "Map"
-			{ attribute<point_rd> Values; }		
+			{ attribute<point_rd> Values; attribute<bool> ConnectsRail:= any(IsRail, F1) || any(IsRail, F2);}		
 			
 			unit<uint32> YearStations: expr = "union_unit(BaseNetwork/YearStations, NetworkAddition/StationAddition)"
 			{ attribute<point_rd> centroid:	expr = "union_data(YearStations, BaseNetwork/YearStations/centroid, NetworkAddition/StationAddition/centroid)"; 
@@ -163,7 +164,7 @@ Container AdditionFlowSchemes: using = "getInbetweens;PopulationModels;params;"
 			attribute<PopulationModels/Population> Dest_id:     expr = "DstZone_rel";
 		}
 		
-		attribute<float32> Accessibility (PopulationModels/Population): expr = "sum(float32(PopulationModels/Population/Population[ODMatrix/Dest_id]) * (max_elem(ODMatrix/Impedance, Population/InternalTime[ODMatrix/Dest_id]) ^ params/b1), ODMatrix/Origin_id)";
+		attribute<float32> Accessibility (PopulationModels/Population): expr = "sum(float32(PopulationModels/Population/Population[ODMatrix/Dest_id]) * (max_elem(ODMatrix/Impedance[float32], float32(Population/InternalTime)[ODMatrix/Dest_id]) ^ params/b1), ODMatrix/Origin_id)";
 		
 		parameter<float32> summed_access: 	expr = "sum(Accessibility)";
 		parameter<float32> average_access: 	expr = "mean(Accessibility)";
@@ -375,12 +376,12 @@ Container AdditionFlowSchemes: using = "getInbetweens;PopulationModels;params;"
 		parameter<string> NetStoragePlace: expr = "'%ProjDir%/runs/' + RunSettings/Scenarios/Name[RunSettings/ScenarioId] + '/flows/' + string(RunSettings/CurrentInvestment) + '/' + routeID + '/TotalFlows'";
 		
 		unit<uint32> Flows: 
-			StorageName 	= "= NetStoragePlace + '.dbf'",
-			StorageReadOnly = "True",
-			DialogData 		= "line",
-			DialogType 		= "map"
+			StorageName 	= "= NetStoragePlace + '.shp'",
+			storagetype		= "gdal.vect",
+			StorageReadOnly = "True"
 		{
-			attribute<point_rd>	line (arc): StorageName 	= "= NetStoragePlace + '.shp'";
+			attribute<point_rd> Geometry (arc);
+			attribute<point_rd>	line (arc):= Geometry;
 			attribute<float32>	length;
 			attribute<float32>  TotFlows;
 			attribute<float32>  RailFlows;

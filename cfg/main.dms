@@ -9,7 +9,7 @@ Container TransportLinkScanner
 		parameter<bool> 	   NewRun: 				expr = "CurrentInvestment = 0";	// True"; // keeps track of whether this is the first investment or not.
 		parameter<Scenarios>   ScenarioId:			expr = "rlookup(ActiveScenarioName, Scenarios/Name)";
 		//parameter<Scenarios>   ScenarioId:			expr = "rlookup('notelastic_r1_md_0_r0', Scenarios/Name)";
-		parameter<uint32> 	   CurrentInvestment:	expr = "sum(InvestmentTracker/InvestId)", KeepData = "False"; //40", KeepData = "False"; //40", KeepData = "False"; //24", KeepData = "False"; //40", KeepData = "False"; //
+		parameter<uint32> 	   CurrentInvestment:	expr = "3";//sum(InvestmentTracker/InvestId)", KeepData = "False"; //0", KeepData = "False"; //40", KeepData = "False"; //24", KeepData = "False"; //40", KeepData = "False"; // 
 		parameter<uint16>	   OpenYear:			expr = "CheckWithRealInvestments";//uint16(sum(InvestmentTracker/Year))"; //uint16(1850)"; //
 		parameter<uint16> 	   inYear:=				uint16(Years/Year[classify(Openyear, Years/Year[uint16])]);
 		
@@ -33,7 +33,7 @@ Container TransportLinkScanner
 			attribute<uint32> InvestId;
 			attribute<uint32> Year;
 		}
-		unit<uint32> Scenarios: NrOfRows = 111{
+		unit<uint32> Scenarios: NrOfRows = 109{
 			parameter<uint32> NrAttributes: [10];
 			
 			unit<uint32> Table: expr = "range(uint32, 0, #Scenarios * NrAttributes)" {
@@ -41,17 +41,19 @@ Container TransportLinkScanner
 				//Name									Randombase	costfield_eval				MatrixSelection			InvestmentSelection			popfield, 				maxLengthFromWindow rankselection 	high_prob_alter		investment_pause
 				'elastic_no_state',							'0',	'curr_costs',				'logit_w_elasticity',		'elastic_r1',			'ObservedDynamic',		'true',				'0',			'9',				'1',
 				'calib_elastic_speed_inc_local_speed',		'0',	'curr_costs',				'logit_w_elasticity',		'calib',				'ObservedDynamic',		'true',				'0',			'9',				'1',
-				'calib_elastic_speed_inc',		'0',	'curr_costs',				'logit_w_elasticity',		'calib',				'ObservedDynamic',		'true',				'0',			'9',				'1',
-				'calib_elastic',				'0',	'curr_costs',				'logit_w_elasticity',		'calib',				'ObservedDynamic',		'true',				'0',			'9',				'1',
+			//	'calib_elastic_speed_inc',		'0',	'curr_costs',				'logit_w_elasticity',		'calib',				'ObservedDynamic',		'true',				'0',			'9',				'1',
+				'calib_elastic_local_speed',	'0',	'curr_costs',				'logit_w_elasticity',		'calib',				'ObservedDynamic',		'true',				'0',			'9',				'1',
+			//	'calib_elastic',				'0',	'curr_costs',				'logit_w_elasticity',		'calib',				'ObservedDynamic',		'true',				'0',			'9',				'1',
 				//'calib_elastic_cc_se',			'0',	'curr_costs_state_eval',	'logit_w_elasticity',		'calib',				'ObservedDynamic',		'true',				'0',			'9',				'1',
-				'calib_elastic_rnd',			'0',	'curr_costs_state_eval',	'RandomModel',				'calib',				'ObservedDynamic',		'true',				'0',			'9',				'1',
-				'calib_elastic_rnd_shortest',	'0',	'curr_costs_state_eval',	'RandomModel',				'calib',				'ObservedDynamic',		'true',				'0',			'9',				'1',
-				'calib_elastic_ms0',			'0',	'curr_costs_state_eval',	'simplified_mod0',			'calib',				'ObservedDynamic',		'true',				'0',			'9',				'1',
-				'calib_elastic_ms1',			'0',	'curr_costs_state_eval',	'simplified_mod1',			'calib',				'ObservedDynamic',		'true',				'0',			'9',				'1',
-				'calib_elastic_ms2',			'0',	'curr_costs_state_eval',	'simplified_mod2',			'calib',				'ObservedDynamic',		'true',				'0',			'9',				'1',
+				'calib_elastic_rnd_speed_inc_local_speed',			'0',	'curr_costs_state_eval',	'RandomModel',				'calib',				'ObservedDynamic',		'true',				'0',			'9',				'1',
+				'calib_elastic_rnd_shortest_speed_inc_local_speed',	'0',	'curr_costs_state_eval',	'RandomModel',				'calib',				'ObservedDynamic',		'true',				'0',			'9',				'1',
+				'calib_elastic_ms0_speed_inc_local_speed',			'0',	'curr_costs_state_eval',	'simplified_mod0',			'calib',				'ObservedDynamic',		'true',				'0',			'9',				'1',
+				'calib_elastic_ms1_speed_inc_local_speed',			'0',	'curr_costs_state_eval',	'simplified_mod1',			'calib',				'ObservedDynamic',		'true',				'0',			'9',				'1',
+				'calib_elastic_ms2_speed_inc_local_speed',			'0',	'curr_costs_state_eval',	'simplified_mod2',			'calib',				'ObservedDynamic',		'true',				'0',			'9',				'1',
 				'calib_notelastic_speed_inc_local_speed',	'0',	'curr_costs',				'logit_no_elasticity',		'calib',				'ObservedDynamic',		'true',				'0',			'9',				'1',
-				'calib_notelastic_speed_inc',	'0',	'curr_costs',				'logit_no_elasticity',		'calib',				'ObservedDynamic',		'true',				'0',			'9',				'1',
-				'calib_notelastic',				'0',	'curr_costs',				'logit_no_elasticity',		'calib',				'ObservedDynamic',		'true',				'0',			'9',				'1',
+			//	'calib_notelastic_speed_inc',	'0',	'curr_costs',				'logit_no_elasticity',		'calib',				'ObservedDynamic',		'true',				'0',			'9',				'1',
+				'calib_notelastic_local_speed',	'0',	'curr_costs',				'logit_no_elasticity',		'calib',				'ObservedDynamic',		'true',				'0',			'9',				'1',
+			//	'calib_notelastic',				'0',	'curr_costs',				'logit_no_elasticity',		'calib',				'ObservedDynamic',		'true',				'0',			'9',				'1',
 				'elastic_r1_od_1_r0',			'1',	'curr_costs_state_eval',	'logit_w_elasticity',		'elastic_r1',			'ObservedDynamic',		'true',				'0',			'9',				'1',
 				'elastic_r1_od_1_r0',			'1',	'curr_costs_state_eval',	'logit_w_elasticity',		'elastic_r1',			'ObservedDynamic',		'true',				'0',			'9',				'1',
 				'elastic_r1_od_1_GronLeeuw_r0',	'1',	'curr_costs_state_eval',	'logit_w_elasticity',		'elastic_r1',			'ObservedDynamic',		'true',				'0',			'9',				'1',
@@ -170,7 +172,7 @@ Container TransportLinkScanner
 			attribute<string> 	Label:							expr = "Name";
 			
 			attribute<float32> 	WalkKmh:						expr = "const(4,.,float32)";
-			attribute<float32> 	TrainKmh: 						expr = "strcount(Name, 'speed_inc') = 0 ? 30f : 0.0000115f * exp(0.0079f * RunSettings/inYear[float32])";
+			attribute<float32> 	TrainKmh: 						expr = "strcount(Name, 'speed_inc') = 0 ? 32f : 0.0000115f * exp(0.0079f * RunSettings/inYear[float32])";
 			attribute<float32>  LocalKmh:						expr = "strcount(Name, 'local_speed') = 0 ? TrainKmh : 16f";
 			attribute<bool>		Alonso_model:					expr = "strcount(Name, 'notelastic') = 0";
 			attribute<float32> 	scenario_b1:					expr = "strcount(Name, 'RietveldBruinsma') = 0 ? -1.8f : -2.0f";
@@ -202,7 +204,8 @@ Container TransportLinkScanner
 	#include<PopulationModels.dms>
 	#include<Operators.dms>
 	#include<StartNet.dms>
-	#include<AltRailways.dms>	
+	#include<AltRailways.dms>
+	#include<LinkCosts.dms>
 	#include<TransportModel.dms>
 	#include<InvestmentDecisionEval.dms>
 	

@@ -3,14 +3,41 @@ container ResultsComparison_general: using = "Units;SourceData;"
 	
 	parameter<string> popref: expr = "''"; //'float32(PopulationModels/Population/pop1929)'"; // set as '' to compare with population at reference year of investment built in historic net
 	
+	container comparison_params {
+		parameter<string> WalkKmh:= propvalue(RunSettings/Scenarios/WalkKmh, 'expr');
+		parameter<string> TrainKmh:= propvalue(RunSettings/Scenarios/TrainKmh, 'expr');
+		parameter<string> LocalKmh:= propvalue(RunSettings/Scenarios/LocalKmh, 'expr');
+		parameter<string> WaitingSeconds:= propvalue(RunSettings/Scenarios/WaitingSeconds, 'expr');
+	}
+	
+	unit<uint32> eval_years:= range(uint32, 0, (BaseScenario/lastYear-BaseScenario/firstYear)+1) {
+		attribute<uint32> year:= BaseScenario/firstYear + id(.);
+		attribute<string> sYear:= 'Y'+string(year);
+		attribute<string> walkspeed_def:= const(comparison_params/WalkKmh,.,string);
+		attribute<string> walkspeed_eval:= replace(walkspeed_def, 'RunSettings/inYear', string(year));
+		attribute<string> trainspeed_def:= const(comparison_params/TrainKmh,.,string);
+		attribute<string> trainspeed_eval:= replace(trainspeed_def, 'RunSettings/inYear', string(year));
+		attribute<string> localspeed_def:= const(comparison_params/LocalKmh,.,string);
+		attribute<string> localspeed_eval:= replace(localspeed_def, 'RunSettings/inYear', string(year));
+		
+	}
+	
 	unit<uint32> BaseScenario: NrOfRows = 1
 	{
 		attribute<string> Name: 	['HistoricNet'];
 		attribute<string> UnitRef:	['NetworkAllocationResults/HistoricNet/Network'];
 		parameter<uint32> LastInvestment: expr = "max(NetworkAllocationResults/HistoricNet/Network/InvestId)";
 		attribute<bool>   AllBenefitsComputed: [false];
+		parameter<uint32> firstYear:= 1839;
+		parameter<uint32> lastYear:= 1929;
+		
 	}	
-	unit<uint32> ScenariosRan:= subset(RunSettings/Scenarios/modelRealInvestments) { // && id(RunSettings/Scenarios) <> RunSettings/ScenarioId) {
+	//unit<uint32> ScenariosRan:= subset(RunSettings/Scenarios/modelRealInvestments) { // && id(RunSettings/Scenarios) <> RunSettings/ScenarioId) {
+	unit<uint32> ScenariosRan:= subset(
+			lowercase(RunSettings/Scenarios/Name) = 'calib_elastic_local_speed' || 
+			lowercase(RunSettings/Scenarios/Name) = 'calib_notelastic_local_speed' ||
+			lowercase(RunSettings/Scenarios/Name) = 'calib_elastic_speed_inc_local_speed' || 
+			lowercase(RunSettings/Scenarios/Name) = 'calib_notelastic_speed_inc_local_speed') {
 		attribute<string> Name:= RunSettings/Scenarios/Name[Nr_OrgEntity];
 		attribute<string> LabelText:= Name;
 		attribute<string> UnitRef:= 'NetworkAllocationResults/' + Name + '/Network';
@@ -27,11 +54,20 @@ container ResultsComparison_general: using = "Units;SourceData;"
 		attribute<uint32> LastInvestment:		expr = "union_data(., BaseScenario/LastInvestment, ScenariosRan/LastInvestment)";
 		attribute<float32>Distdecay:			expr = "const(-1.777,.,float32)";
 		attribute<bool>	  AllBenefitsComputed: 	expr = "union_data(., BaseScenario/AllBenefitsComputed, ScenariosRan/AllBenefitsComputed)";
+		attribute<float32> walkspeed_def:= =comparison_params/WalkKmh;
+		attribute<float32> WaitingSeconds_def:= =comparison_params/WaitingSeconds;
+		
+		container walkspeeds:= for_each_nedv(eval_years/sYear, 'walkspeed_def', AllEvaluatedScenarios, float32);
+		container trainspeeds:= for_each_nedv(eval_years/sYear, eval_years/trainspeed_eval, AllEvaluatedScenarios, float32) {attribute<string> Name (AllEvaluatedScenarios):= id(AllEvaluatedScenarios)=0 ? ScenariosRan/Name[HistoricNet_ResultsCumulation/s_id] : AllEvaluatedScenarios/Name;}
+		container localspeeds:= for_each_nedv(eval_years/sYear, eval_years/localspeed_eval, AllEvaluatedScenarios, float32) {attribute<string> Name (AllEvaluatedScenarios):= id(AllEvaluatedScenarios)=0 ? ScenariosRan/Name[HistoricNet_ResultsCumulation/s_id] : AllEvaluatedScenarios/Name;}
+		container waitingtimes:= for_each_nedv(eval_years/sYear, 'WaitingSeconds_def', AllEvaluatedScenarios, float32);
 	}
 	unit<uint32> Investments: expr = "range(uint32, 0, max(AllEvaluatedScenarios/LastInvestment))"
 	{
 		attribute<string> inv_count: expr = "'inv_' + string(id(.))";
 		attribute<float32>BaseScenario_length: expr = "= 'union_data(.,'+ AsItemList('AnalysisPerInvestment/inv_' + string(id(.)) + '/ScenarioEval/'+ BaseScenario/Name[0] +'/networkLength') +')'";
+		attribute<uint32>BaseScenario_year:= ='union_data(.,'+ AsItemList('AnalysisPerInvestment/inv_' + string(id(.)) + '/ScenarioEval/'+ BaseScenario/Name[0] +'/OpenYear') +')';
+		//attribute<uint32> BaseScenario_year: expr = "";
 	}
 	unit<uint32> OperatorTypes: expr = "Operators/Operators";
 	
@@ -55,15 +91,7 @@ container ResultsComparison_general: using = "Units;SourceData;"
 		}
 	}
 	
-/*	container AnalysisPerInvestmentPerOperatorType: expr = "for_each_ne(Inv_x_Ot/unique, 'getAnalysisPerInvestment('+ string(Inv_x_Ot/first_rel) +','+ string(Inv_x_Ot/second_rel) +')')"
-	{
-		unit<uint32> proto_od_matrix: expr = "combine(PopulationModels/Population, PopulationModels/Population)"
-		{
-			attribute<PopulationModels/Population> i: 		expr = "first_rel";
-			attribute<PopulationModels/Population> j:			expr = "second_rel";
-			attribute<upoint>uni_id: 	expr = "point(i, j, upoint)", ExplicitSuppliers = "first_rel;second_rel";
-		}
-	}*/
+
 	
 	
 	unit<uint32> CompileNetworkAllocationResults: expr = "combine(AllEvaluatedScenarios, Investments)"
@@ -106,11 +134,11 @@ container ResultsComparison_general: using = "Units;SourceData;"
 	
 	container NetworkAllocationResults: expr = "for_each_ne(ScenariosRan/Name, 'getResultFiles('+ string(id(ScenariosRan)) +')')"
 	{
-		container comparison_params:= params {
-			parameter<speed> WalkSpeed:= (4f / 3.6f)[speed];
-			parameter<speed> TrainSpeed:= (47.75f / 3.6f)[speed];
-			parameter<speed> LocalSpeed:= (16f / 3.6f)[speed];
-		}
+		//container comparison_params:= params {
+		//	parameter<speed> WalkSpeed:= (4f / 3.6f)[speed];
+		//	parameter<speed> TrainSpeed:= (47.75f / 3.6f)[speed];
+		//	parameter<speed> LocalSpeed:= (16f / 3.6f)[speed];
+		//}
 		
 		
 		container HistoricNet
@@ -123,8 +151,9 @@ container ResultsComparison_general: using = "Units;SourceData;"
 				attribute<uint32>	InvestId:	expr = "union_data(., Railroads/Railroads/Railroad_data/InvestId, Railroads/Stations/StationConnectLinks/InvestId)";
 				attribute<float32>  Costs:		expr = "union_data(., float32(Railroads/Railroads/Railroad_data/ConnectorCost), const(float32(0), Railroads/Stations/StationConnectLinks, float32))";
 				attribute<m>  		Length:		expr = "arc_length(line, m)";
-				attribute<s>		Seconds: 	expr = "!bool(IsRail) ? (length / comparison_params/WalkSpeed) + comparison_params/WaitingSeconds : length / (OpType = 1 ? comparison_params/LocalSpeed : comparison_params/TrainSpeed)";
+				//attribute<s>		Seconds: 	expr = "!bool(IsRail) ? (length / comparison_params/WalkSpeed) + comparison_params/WaitingSeconds : length / (OpType = 1 ? comparison_params/LocalSpeed : comparison_params/TrainSpeed)";
 				attribute<uint32>	OpType:		expr = "union_data(., Railroads/Railroads/Railroad_data/OpType, const(0 / 0,Railroads/Stations/StationConnectLinks,uint32))";
+				attribute<uint32>	Year:		expr = "uint32(Railroads/Railroads/Railroad_data/Investments/OpenYear[InvestId])";
 				
 			}
 		}
@@ -158,7 +187,7 @@ container ResultsComparison_general: using = "Units;SourceData;"
 			attribute<uint32> InvestId: 		expr = "= 'union_data(.,'+ AsItemList('const('+ string(Tobeloaded/InvestId) + ', retrieve_characteristics/'+ Tobeloaded/Uni_name +'/InvestmentCharacteristics, uint32)') +')'";
 			attribute<string>  Name: 			expr = "= 'union_data(.,'+ AsItemList('retrieve_characteristics/'+ Tobeloaded/Uni_name +'/InvestmentCharacteristics/Name') +')'";
 			attribute<string>  RouteId:			expr = "= 'union_data(.,'+ AsItemList('retrieve_characteristics/'+ Tobeloaded/Uni_name +'/InvestmentCharacteristics/RouteId') +')'";
-			attribute<uint32>  sel:				expr = "= 'union_data(.,'+ AsItemList('uint32(retrieve_characteristics/'+ Tobeloaded/Uni_name +'/InvestmentCharacteristics/sel)') +')'";
+			attribute<uint32>  sel:				expr = "= 'union_data(.,'+ AsItemList('uint32(retrieve_characteristics/'+ Tobeloaded/Uni_name +'/InvestmentCharacteristics/first_alt)') +')'"; // temp fix to circumvent problematic definition of sel (due to discrepancy in operator code)
 			attribute<float32> bTotFlows: 		expr = "= 'union_data(.,'+ AsItemList('float32(retrieve_characteristics/'+ Tobeloaded/Uni_name +'/InvestmentCharacteristics/bTotFlows)') +')'";
 			attribute<float32> aTotFlows: 		expr = "= 'union_data(.,'+ AsItemList('float32(retrieve_characteristics/'+ Tobeloaded/Uni_name +'/InvestmentCharacteristics/aTotFlows)') +')'";
 			attribute<float32> bRailFlows:  	expr = "= 'union_data(.,'+ AsItemList('float32(retrieve_characteristics/'+ Tobeloaded/Uni_name +'/InvestmentCharacteristics/bRailFlows)') +')'";
@@ -172,6 +201,8 @@ container ResultsComparison_general: using = "Units;SourceData;"
 			attribute<float32> blen:			expr = "= 'union_data(.,'+ AsItemList('float32(retrieve_characteristics/'+ Tobeloaded/Uni_name +'/InvestmentCharacteristics/blen)') +')'";
 			attribute<float32> alen:			expr = "= 'union_data(.,'+ AsItemList('float32(retrieve_characteristics/'+ Tobeloaded/Uni_name +'/InvestmentCharacteristics/alen)') +')'";
 			attribute<float32> acosts:			expr = "= 'union_data(.,'+ AsItemList('float32(retrieve_characteristics/'+ Tobeloaded/Uni_name +'/InvestmentCharacteristics/acosts)') +')'";
+			attribute<float32> vCosts_until_1851:expr = "= 'union_data(.,'+ AsItemList('float32(retrieve_characteristics/'+ Tobeloaded/Uni_name +'/InvestmentCharacteristics/vCosts_until_1851)') +')'";
+			attribute<float32> vCosts_from_1852: expr = "= 'union_data(.,'+ AsItemList('float32(retrieve_characteristics/'+ Tobeloaded/Uni_name +'/InvestmentCharacteristics/vCosts_from_1852)') +')'";
 			attribute<float32> bTMinPerCa:		expr = "= 'union_data(.,'+ AsItemList('float32(retrieve_characteristics/'+ Tobeloaded/Uni_name +'/InvestmentCharacteristics/bTMinPerCa)') +')'";
 			attribute<float32> aTMinPerCa:		expr = "= 'union_data(.,'+ AsItemList('float32(retrieve_characteristics/'+ Tobeloaded/Uni_name +'/InvestmentCharacteristics/aTMinPerCa)') +')'";
 			attribute<float32> bRMinPerCa:		expr = "= 'union_data(.,'+ AsItemList('float32(retrieve_characteristics/'+ Tobeloaded/Uni_name +'/InvestmentCharacteristics/bRMinPerCa)') +')'";
@@ -266,11 +297,9 @@ container ResultsComparison_general: using = "Units;SourceData;"
 		parameter<uint32> inInvestId;
 		parameter<uint32> inOt_id: expr = "0 / 0";
 		
-		
-		
 		container prior_investment:= =inInvestId > 0 ? 'AnalysisPerInvestment/inv_'+string(sub_or_null(inInvestId, 1)) : 'startingstate';
 		
-		container ScenarioEval: expr = "for_each_ne(AllEvaluatedScenarios/Name, 'getScenarioEvaluation('+ AllEvaluatedScenarios/UnitRef +','+ (IsDefined(inInvestId) ? string(inInvestId) : string(-1)) +'i, od_evaluation, inOt_id)')";
+		container ScenarioEval: expr = "for_each_ne(AllEvaluatedScenarios/Name, 'getScenarioEvaluation('+ AllEvaluatedScenarios/UnitRef +','+string(id(AllEvaluatedScenarios))+','+(IsDefined(inInvestId) ? string(inInvestId) : string(-1)) +'i, od_evaluation, inOt_id)')";
 		
 		container net_evaluation
 		{
@@ -281,7 +310,7 @@ container ResultsComparison_general: using = "Units;SourceData;"
 
 		container zone_evaluation
 		{
-			parameter<string> comp_pop_ref: expr = "'float32(PopulationModels/Population/Pop' + string(comp_year)";
+			parameter<string> comp_pop_ref: expr = "'PopulationModels/Population/Pop' + string(comp_year)+'[float32]'";
 			parameter<uint16>  comp_year:= makedefined(inInvestId, 0) < max(Railroads/Railroads/Railroad_data/Investments/id[uint32]) ? Railroads/Railroads/Railroad_data/Investments/InYear[max(Railroads/Railroads/Railroad_data/Investments/id)] : Railroads/Railroads/Railroad_data/Investments/InYear[makeDefined(inInvestId, 0)];
 			
 			
@@ -335,6 +364,7 @@ container ResultsComparison_general: using = "Units;SourceData;"
 		parameter<uint32> InvestId;
 	
 		unit<uint32> InvestmentCharacteristics: StorageName = "= '%projDir%/runs/'+ ScenariosRan/Name[loadScenario] +'/linkselection/AlternativesCharacteristics_'+ string(InvestId) +'.dbf'", StorageReadOnly = "True" {
+			attribute<string>  routeId;
 			attribute<float32> bTotFlows;
 			attribute<float32> aTotFlows;
 			attribute<float32> bRailFlows;
@@ -344,6 +374,8 @@ container ResultsComparison_general: using = "Units;SourceData;"
 			attribute<uint32>  Capital:= max(Alternatives_lines/pointset/Capital, Alternatives_lines/pointset/rid);
 			attribute<uint32>  Border:= max(Alternatives_lines/pointset/Border, Alternatives_lines/pointset/rid);
 			attribute<uint32>  Watercross:= uint32(any(Alternatives_lines/watercross, Alternatives_lines/routeid));
+			attribute<float32> vCosts_until_1851:= sum(Alternatives_lines/expost_cost_estimate/outset/costs_until_1851, Alternatives_lines/routeid);
+			attribute<float32> vCosts_from_1852:= sum(Alternatives_lines/expost_cost_estimate/outset/Costs_from_1852, Alternatives_lines/routeid);
 		}
 		unit<uint32> Alternatives_lines: StorageName = "= '%projDir%/runs/'+ ScenariosRan/Name[loadScenario] +'/altgeneration/alt_'+string(InvestId)+'.shp'", StorageType = "gdal.vect", StorageReadOnly = "True" {
 			attribute<point_rd> Geometry (arc);
@@ -352,8 +384,9 @@ container ResultsComparison_general: using = "Units;SourceData;"
 			attribute<float32>	costs;
 			attribute<float32>	length;
 			attribute<uint32>	LinkType;
+			attribute<bool>  	IsRail:= LinkType = 0;
 			attribute<InvestmentCharacteristics> routeid:= rlookup('alt_'+string(altid), InvestmentCharacteristics/routeId);
-			attribute<bool> 	watercross:= LinkType = 0 && (costs / (length)) > 1000f;
+			attribute<bool> 	watercross:= IsRail && (costs / (length)) > 1000f;
 			
 			unit<uint32> pointset:= union_unit(Alternatives_lines, Alternatives_lines), DialogData = "points", DialogType = "map" {
 				attribute<point_rd> points:= union_data(., fp, lp);
@@ -364,6 +397,7 @@ container ResultsComparison_general: using = "Units;SourceData;"
 				attribute<uint32>	Border:= uint32(PopulationModels/zones/isBorderZone[zid]);
 			}
 			
+			container expost_cost_estimate:= LinkCosts/lines_costs_constructor(10f, Alternatives_lines, Alternatives_lines/Geometry);
 		}
 		
 		container CostBenefitAnalysis:= for_each_nta(InvestmentCharacteristics/routeID, CBAshapeTemplate, '%projDir%/runs/'+ ScenariosRan/Name[loadScenario] +'/zones/'+string(InvestId)+'/'+InvestmentCharacteristics/routeID+'/CBA_results.shp');
@@ -378,6 +412,7 @@ container ResultsComparison_general: using = "Units;SourceData;"
 	container getScenarioEvaluation: IsTemplate = "True"
 	{
 		unit<uint32> RailNetworkRef;
+		parameter<AllEvaluatedScenarios> inScenario;
 		parameter<int32> inInvestId;
 		unit<uint32> gen_odMatrix;
 		parameter<uint32> inOpType: expr = "0 / 0";
@@ -385,6 +420,7 @@ container ResultsComparison_general: using = "Units;SourceData;"
 		parameter<bool> OpTypeSeparation: expr = "!IsNull(inOpType)";
 		
 		parameter<float32> networkLength: expr = "sum(float32(RailNetworkRef/IsRail) * float32(int32(RailNetworkRef/InvestId) <= inInvestId) * float32(RailNetworkRef/length))";
+		parameter<uint32>  openYear:= =inInvestId >= 0i ? 'max(uint32(RailnetworkRef/Year) * uint32(RailNetworkRef/InvestId = '+string(inInvestId)+'))' : 'comparable_year';
 		
 		unit<uint32> compare_lengths: expr = "Investments"
 		{
@@ -392,22 +428,36 @@ container ResultsComparison_general: using = "Units;SourceData;"
 		}
 		
 		parameter<compare_lengths> comparable_built_investment: expr = "rlookup(min(compare_lengths/length_dif), compare_lengths/length_dif)";
+		parameter<uint32>	comparable_year:= compare_lengths/BaseScenario_Year[comparable_built_investment];
 		
 		parameter<OperatorTypes> OpNum: expr = "rlookup(MakeDefined(inOpType, 0)[OperatorTypes], id(OperatorTypes))";
 		
 		parameter<string> cbi_eval_text: expr = "OpTypeSeparation ? 'AnalysisPerInvestmentPerOperatorType/inv_'+ string(comparable_built_investment) +'_x_' + OperatorTypes/Name[OpNum] : 'AnalysisPerInvestment/inv_'+ string(comparable_built_investment)";
-			
-		Container Comparable_Built_ref: expr = "= cbi_eval_text";
+		
+		container speed_params {
+			parameter<float32> WalkSpeedKmh:= ='AllEvaluatedScenarios/walkspeeds/y'+string(comparable_year)+'[inScenario]';
+			parameter<float32> TrainSpeedKmh:= ='AllEvaluatedScenarios/trainspeeds/y'+string(comparable_year)+'[inScenario]';
+			parameter<float32> LocalSpeedKmh:= ='AllEvaluatedScenarios/localspeeds/y'+string(comparable_year)+'[inScenario]';
+			parameter<s> WaitingSeconds:= ='AllEvaluatedScenarios/waitingtimes/y'+string(comparable_year)+'[inScenario]';
+			parameter<speed> WalkSpeed:= (WalkSpeedKmh / 3.6f)[speed];
+			parameter<speed> TrainSpeed:= (TrainSpeedKmh / 3.6f)[speed];
+			parameter<speed> LocalSpeed:= (LocalSpeedKmh / 3.6f)[speed];
+		}
+		
+		container Comparable_Built_ref: expr = "= cbi_eval_text";
 				
 		unit<uint32> RailNetwork: expr = "= 'subset(int32(RailNetworkRef/InvestId) <= inInvestId'+ (!IsNull(inOpType) ? ' && RailNetworkRef/OpType = inOpType' : '') +')'", DialogData = "line", DialogType = "map"
 		{
+	
+			
 			attribute<point_rd> line (arc): expr = "RailNetworkRef/line[Nr_OrgEntity]";
 			attribute<bool>		IsRail:		expr = "bool(RailNetworkRef/IsRail[Nr_OrgEntity])";
 			attribute<uint16>   OpNum:		expr = "RailNetworkRef/OpNum[Nr_OrgEntity]";
 			attribute<uint32>   InvestId:	expr = "RailNetworkRef/InvestId[Nr_OrgEntity]";
 			attribute<float32>  Costs:		expr = "RailNetworkRef/Costs[Nr_OrgEntity]";
 			attribute<m>  		length: 	expr = "RailNetworkRef/length[Nr_OrgEntity]";
-			attribute<s>		Seconds:	expr = "RailNetworkRef/Seconds[Nr_OrgEntity]";
+			//attribute<s>		Seconds:	expr = "RailNetworkRef/Seconds[Nr_OrgEntity]";
+			attribute<s>		Seconds: 	expr = "!bool(IsRail) ? (length / speed_params/WalkSpeed) + speed_params/WaitingSeconds : length / (bool(Operators/Operators/Local[OpNum[Operators/Operators]]) ? speed_params/LocalSpeed : speed_params/TrainSpeed)";
 			attribute<point_rd> frompoint: 	expr = "first_point(line)";
 			attribute<point_rd> topoint: 	expr = "last_point(line)";
 			
@@ -520,7 +570,7 @@ container ResultsComparison_general: using = "Units;SourceData;"
 			attribute<float32>  Costs; 
 			attribute<uint32>	OpType:		expr = "Operators/Operators/OpType[uint32(OpNum)]";
 			attribute<m>  		length: 	expr = "arc_length(line, m)";
-			attribute<s>		Seconds: 	expr = "!bool(IsRail) ? (length / comparison_params/WalkSpeed) + comparison_params/WaitingSeconds : length / (bool(Operators/Operators/Local[OpNum[Operators/Operators]]) ? comparison_params/LocalSpeed : comparison_params/TrainSpeed)";
+			//attribute<s>		Seconds: 	expr = "!bool(IsRail) ? (length / comparison_params/WalkSpeed) + comparison_params/WaitingSeconds : length / (bool(Operators/Operators/Local[OpNum[Operators/Operators]]) ? comparison_params/LocalSpeed : comparison_params/TrainSpeed)";
 		}
 	}
 }
