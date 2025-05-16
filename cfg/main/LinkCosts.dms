@@ -1,0 +1,76 @@
+Container LinkCosts: using = "Units;SourceData;" {
+	
+	unit<uint8> CostsPerSoilType: expr = "= RunSettings/Scenarios/cost_def_eval[RunSettings/ScenarioId]";
+
+	unit<uint8> EstimatedCosts: nrOfRows = 3 // costs per 100m
+	{ attribute<string>Type: ['Sand, Gravel or Loam', 'Peat or Clay', 'Spanned River']; attribute<float32> Cost: [12.38, 64.57, 2760.61]; parameter<float32> Const: expr = "float32(1980280)"; } //estimations done after review of JEG.
+
+	unit<uint8> RietveldBruinsma_costs: nrOfRows = 3
+	{ attribute<string>Type: ['Sand, Gravel or Loam', 'Peat or Clay', 'Spanned River']; attribute<float32> Cost: expr = "const(1,.,float32)"; parameter<float32> Const: expr = "float32(0)"; } 
+	
+	unit<uint8> equal_costs: nrOfRows = 3
+	{ attribute<string>Type: ['Sand, Gravel or Loam', 'Peat or Clay', 'Spanned River']; attribute<float32> Cost: expr = "const(1,.,float32)"; parameter<float32> Const: expr = "float32(1)"; } 
+	
+	unit<uint32> nowater: StorageName = "%dataDir%/costgrids/nowater.shp", storagetype = "gdal.vect", StorageReadOnly = "True", DialogData = "poly", DialogType = "Map" {attribute<point_rd> Geometry (poly);}
+	
+	unit<uint32> soilmap:		StorageName = "%dataDir%/costgrids/soil_basis_polygon.shp", storagetype = "gdal.vect", StorageReadOnly = "True", DialogData = "poly", DialogType = "Map"
+	{
+		attribute<point_rd> Geometry (poly);
+		attribute<Soils>	GridCode;
+	}
+	container create_grid {
+		parameter<point_rd> UB:= max(Upper_Bound(soilmap/Geometry));
+		parameter<point_rd> LB:= min(Lower_Bound(soilmap/Geometry));
+		parameter<point_rd> res:= point(100f, 100f, point_rd);
+		parameter<ipoint> range:= ((UB - LB) / res)[ipoint] + point(1i,1i,ipoint);
+	}
+	unit<ipoint> CostsGrid:= 
+		gridset(
+			range(point_rd, create_grid/LB, create_grid/UB)
+			, create_grid/res
+			, create_grid/LB //top left
+			, ipoint
+		) {
+	
+	//unit<wpoint> CostsGrid: StorageName = "%dataDir%/costgrids/soil_basis_michielvaneupen.tif", StorageReadOnly = "True", StorageType = "gdal.grid", DialogData = "point_rd" {
+		attribute<soilmap>				soiltypes_rel:=		poly2grid(soilmap/Geometry, .);
+		attribute<nowater>				nowater_rel:= 		poly2grid(nowater/Geometry, .);
+		attribute<ObservedPopulation>	muni_rel:=	  		poly2grid(ObservedPopulation/Geometry, .);
+		attribute<bool> 				Haarlemmermeer:=	muni_rel = 322[ObservedPopulation];
+		attribute<Soils>				in_soil:= 			soilmap/GridCode[soiltypes_rel];
+		attribute<bool>  				water_until_1851:= 	IsNull(nowater_rel) && IsNull(muni_rel) || Haarlemmermeer;
+		attribute<bool>	 				water_from_1852:= 	IsNull(nowater_rel) && IsNull(muni_rel);
+		attribute<Soils>				soils_until_1851:= 	water_until_1851 ? 0[Soils] : in_soil;
+		attribute<Soils>				soils_from_1852:= 	water_from_1852 ? 0[Soils] : in_soil;
+		attribute<CostsPerSoilType> 	type_until_1851:=	Soils/Type[soils_until_1851];
+		attribute<CostsPerSoilType> 	type_from_1852:=	Soils/Type[soils_from_1852];
+		attribute<float32>				costs_until_1851:=  CostsPerSoilType/Cost[type_until_1851];
+		attribute<float32>				costs_from_1852:=   CostsPerSoilType/Cost[type_from_1852];
+		
+	}
+	// sample code used for development
+	container get_observed_costs:= lines_costs_constructor(10f, SourceData/Railroads/Railroads/Railroad_data, SourceData/Railroads/Railroads/Railroad_data/line);
+	
+	Template lines_costs_constructor {
+		parameter<float32> sample_res;
+		unit<uint32> in_set;
+		attribute<point_rd> lines_to_sample (in_set, arc);
+		unit<uint32> segments:= arc2segm(lines_to_sample) {
+			attribute<float32> length_m:= dist(point, nextpoint)[float32];
+			attribute<float32> costs_until_1851:= mean(samples/costs_until_1851, samples/SequenceNr) * length_m;
+			attribute<float32> costs_from_1852:= mean(samples/costs_from_1852, samples/SequenceNr) * length_m;
+		}
+		unit<uint32> samples:= dyna_point_with_ends(segments/point, segments/nextpoint, sample_res) {
+			attribute<CostsGrid> cg_rel:= point[CostsGrid];
+			attribute<float32> costs_until_1851:= CostsGrid/costs_until_1851[cg_rel];
+			attribute<float32> costs_from_1852:= CostsGrid/costs_from_1852[cg_rel];
+		}
+		unit<uint32> outset:= in_set {
+			attribute<float32> costs_until_1851:= sum(segments/costs_until_1851, segments/SequenceNr);
+			attribute<float32> costs_from_1852:= sum(segments/costs_from_1852, segments/SequenceNr);
+		}
+		
+	}
+	
+	
+}
