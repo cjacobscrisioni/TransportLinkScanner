@@ -141,7 +141,7 @@ container SourceData: Using ="Units;params;PopulationModels;"
 		container Railroads
 		{
 			unit<uint32> Railroad_data_in:
-				StorageName     = "%dataDir%/railroads/nl_raillines.dbf",
+				StorageName     = "%dataDir%/railroads/nl_raillines_2.dbf",
 				DialogData      = "line",
 				DialogType      = "Map",
 				SyncMode        = "none",
@@ -149,7 +149,7 @@ container SourceData: Using ="Units;params;PopulationModels;"
 			{
 				attribute<point_rd> line(arc):
 					label           = "Netwerk Nederland",
-					StorageName     = "%dataDir%/railroads/nl_raillines.shp",
+					StorageName     = "%dataDir%/railroads/nl_raillines_2.shp",
 					StorageReadOnly = "True";
 				attribute<Railroad_data_in> id:     expr = "id(Railroad_data_in)", DisableStorage = "True";
 				attribute<float32> 			length: expr = "arc_length(line, float32)";
@@ -257,11 +257,12 @@ container SourceData: Using ="Units;params;PopulationModels;"
 					attribute<Operators/Real_Operators>	Operator:	expr = "first(OperatorId, InvestId)";
 					attribute<float32>		InvLength:  expr = "sum(Concessies/length, Concessies/InvestId)";
 					attribute<float32> 		CumuLength: expr = "cumulate(InvLength)";
-					attribute<uint32>		State:= uint32(Operators/Historical_Operators/State[Operator]);
-					attribute<uint32>		Local:= uint32(Operators/Historical_Operators/Local[Operator]);
+					attribute<uint32>		State:= max(Railroad_data/Staat, Railroad_data/InvestId)[uint32];//uint32(Operators/Historical_Operators/State[Operator]);
+					attribute<uint32>		Local:= max(Railroad_data/LocalTrck, Railroad_data/InvestId)[uint32];
 					attribute<uint32>		Harbour:= uint32(max(Haven, InvestId));
 					attribute<uint32>		Capital:= uint32(max(ProvHoofd, InvestId));
 					attribute<uint32>		Border:=  uint32(max(BorderZone, InvestId));
+					attribute<LinkTypes>	LinkType:= switch(case(bool(State), 2[LinkTypes]), case(bool(Local), 3[LinkTypes]), 1[LinkTypes]);
 				}
 				
 				unit<uint32> exp_net:= Railroad_data, StorageName = "%ProjDir%/results/railroads_info.dbf" {

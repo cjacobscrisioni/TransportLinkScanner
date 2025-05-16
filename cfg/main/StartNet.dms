@@ -16,7 +16,7 @@ container StartNet: Using = "Units;SourceData;PopulationModels;"
 		attribute<uint16>	Year;
 		attribute<float32>  Costs;  //:		expr = "length"; // change for real costs when rerunning
 		attribute<m>  		length: 	expr = "arc_length(line, m)";
-		attribute<LinkTypes>linktype:= 	switch(case(!bool(IsRail), 0[LinkTypes]), case(bool(Operators/Operators/State)[OpNum], 2[LinkTypes]), case(bool(Operators/Operators/Local)[OpNum], 3[LinkTypes]), 1[LinkTypes]);
+		attribute<LinkTypes>linktype:= IsRail > 0w ? SourceData/Railroads/Railroads/Railroad_data/Investments/LinkType[InvestId[SourceData/Railroads/Railroads/Railroad_data/Investments]] : 0[LinkTypes];
 		attribute<s>		Seconds:=	length / LinkTypes/speeds[linktype];
 		attribute<Zones>	ZoneConn: 	expr = "rlookup(first_node(line), zones/centroid)";
 	}

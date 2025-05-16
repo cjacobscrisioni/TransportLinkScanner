@@ -34,10 +34,16 @@ container ResultsComparison_general: using = "Units;SourceData;"
 	}	
 	//unit<uint32> ScenariosRan:= subset(RunSettings/Scenarios/modelRealInvestments) { // && id(RunSettings/Scenarios) <> RunSettings/ScenarioId) {
 	unit<uint32> ScenariosRan:= subset(
-			lowercase(RunSettings/Scenarios/Name) = 'calib_elastic_local_speed' || 
-			lowercase(RunSettings/Scenarios/Name) = 'calib_notelastic_local_speed' ||
-			lowercase(RunSettings/Scenarios/Name) = 'calib_elastic_speed_inc_local_speed' || 
-			lowercase(RunSettings/Scenarios/Name) = 'calib_notelastic_speed_inc_local_speed') {
+			lowercase(RunSettings/Scenarios/Name) = 'calib_elastic_local_speed'
+			|| lowercase(RunSettings/Scenarios/Name) = 'calib_notelastic_local_speed'
+			|| lowercase(RunSettings/Scenarios/Name) = 'calib_elastic_speed_inc_local_speed'
+			|| lowercase(RunSettings/Scenarios/Name) = 'calib_notelastic_speed_inc_local_speed'
+			|| lowercase(RunSettings/Scenarios/Name) = 'calib_elastic_rnd_speed_inc_local_speed'
+			|| lowercase(RunSettings/Scenarios/Name) = 'calib_elastic_rnd_shortest_speed_inc_local_speed'
+			|| lowercase(RunSettings/Scenarios/Name) = 'calib_elastic_ms0_speed_inc_local_speed'
+			|| lowercase(RunSettings/Scenarios/Name) = 'calib_elastic_ms1_speed_inc_local_speed'
+			|| lowercase(RunSettings/Scenarios/Name) = 'calib_elastic_ms2_speed_inc_local_speed'
+			) {
 		attribute<string> Name:= RunSettings/Scenarios/Name[Nr_OrgEntity];
 		attribute<string> LabelText:= Name;
 		attribute<string> UnitRef:= 'NetworkAllocationResults/' + Name + '/Network';

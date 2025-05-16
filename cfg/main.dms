@@ -9,7 +9,7 @@ Container TransportLinkScanner
 		parameter<bool> 	   NewRun: 				expr = "CurrentInvestment = 0";	// True"; // keeps track of whether this is the first investment or not.
 		parameter<Scenarios>   ScenarioId:			expr = "rlookup(ActiveScenarioName, Scenarios/Name)";
 		//parameter<Scenarios>   ScenarioId:			expr = "rlookup('notelastic_r1_md_0_r0', Scenarios/Name)";
-		parameter<uint32> 	   CurrentInvestment:	expr = "3";//sum(InvestmentTracker/InvestId)", KeepData = "False"; //0", KeepData = "False"; //40", KeepData = "False"; //24", KeepData = "False"; //40", KeepData = "False"; // 
+		parameter<uint32> 	   CurrentInvestment:	expr = "27";//sum(InvestmentTracker/InvestId)", KeepData = "False"; //0", KeepData = "False"; //40", KeepData = "False"; //24", KeepData = "False"; //40", KeepData = "False"; // 
 		parameter<uint16>	   OpenYear:			expr = "CheckWithRealInvestments";//uint16(sum(InvestmentTracker/Year))"; //uint16(1850)"; //
 		parameter<uint16> 	   inYear:=				uint16(Years/Year[classify(Openyear, Years/Year[uint16])]);
 		
