@@ -16,7 +16,7 @@ container StartNet: Using = "Units;SourceData;PopulationModels;"
 		attribute<uint16>	Year;
 		attribute<float32>  Costs;  //:		expr = "length"; // change for real costs when rerunning
 		attribute<m>  		length: 	expr = "arc_length(line, m)";
-		attribute<LinkTypes>linktype:= IsRail > 0w ? SourceData/Railroads/Railroads/Railroad_data/Investments/LinkType[InvestId[SourceData/Railroads/Railroads/Railroad_data/Investments]] : 0[LinkTypes];
+		attribute<LinkTypes>linktype:= IsRail > 0w ? SourceData/Railroads/Railroads/Investments/LinkType[InvestId[SourceData/Railroads/Railroads/Investments]] : 0[LinkTypes];
 		attribute<s>		Seconds:=	length / LinkTypes/speeds[linktype];
 		attribute<Zones>	ZoneConn: 	expr = "rlookup(first_node(line), zones/centroid)";
 	}
@@ -28,8 +28,8 @@ container StartNet: Using = "Units;SourceData;PopulationModels;"
 			expr = "union_data(., RailNetwork/line, Roads/Road_data/line)";
 		attribute<m> 	length: 
 			expr = "value(union_data(., RailNetwork/length, Roads/Road_data/length),m)";
-		attribute<s> 	Seconds: 
-			expr = "value(union_data(., RailNetwork/Seconds, Roads/Road_data/Seconds),s)";
+		attribute<LinkTypes>linktype:= IsRail ? SourceData/Railroads/Railroads/Investments/LinkType[InvestId[SourceData/Railroads/Railroads/Investments]] : 0[LinkTypes];
+		attribute<s>		Seconds:=	length / LinkTypes/speeds[linktype];
 		attribute<uint16> 	Close_Year: 
 			expr = "union_data(., Roads/Road_data/Close_Year)";
 		attribute<bool>  	IsRail: 
@@ -37,7 +37,7 @@ container StartNet: Using = "Units;SourceData;PopulationModels;"
 		attribute<bool>		IsConnector:
 			expr = "union_data(., !bool(RailNetwork/IsRail), const(False,Roads/Road_data,bool))";
 		attribute<uint32> InvestId: 
-			expr = "union_data(., RailNetwork/InvestId, const(0 / 0,Roads/Road_data, uint32))";
+			expr = "union_data(., RailNetwork/InvestId, const(0 / 0, Roads/Road_data, uint32))";
 		attribute<Operators/Operators> OpNum: expr = "union_data(., uint32(RailNetwork/OpNum), const(0 / 0, Roads/Road_data, uint32))[Operators/Operators]";
 		attribute<float32> Costs: expr = "union_data(., RailNetwork/Costs, const(0/0, Roads/Road_data, float32))";
 		attribute<uint16> Year: expr = "union_data(., RailNetwork/Year, const(0, Roads/Road_data, uint16))";

@@ -103,6 +103,14 @@ container Units
 		
 		container V:= for_each_nedv(Label, string(id(.)), void, LinkTypes);
 	}
+	unit<uint32> InvestorTypes: nrofrows = 5 {
+		attribute<string> Label: ['Private trunk', 'State', 'Local', 'Unknown', 'Foreign'];
+		attribute<LinkTypes> LinkType: [1, 2, 3, null, 1];
+	}
+	unit<uint32> OperatorTypes: nrofrows = 5 {
+		attribute<string> Label: ['Private trunk', 'State', 'Local', 'Unknown', 'Foreign'];
+		attribute<LinkTypes> LinkType: [1, 2, 3, null, 1];
+	}
 	unit<uint32> Years: nrOfRows = 10
 	{ 
 		attribute<string> 	Label:= 'Y'+string(Year);
