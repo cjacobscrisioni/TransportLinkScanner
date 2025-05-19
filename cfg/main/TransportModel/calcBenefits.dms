@@ -59,9 +59,11 @@ container calcBenefits: using = "getInbetweens;PopulationModels;AdditionFlowSche
 				attribute<point_rd> first_point: 	expr = "first_point(UnionData)";
 				attribute<point_rd> last_point:  	expr = "last_point(UnionData)";	
 				attribute<m>       	length: 		expr = "arc_length(UnionData, m)";												
-				attribute<s> 		Seconds: 		expr = "YearNet/Seconds";
+				attribute<s> 		Seconds: 		expr = "YearNet/Seconds +  (float32(ConnectsRail) * (Params/WaitingSeconds / 2f))";
+				attribute<float32>	Speed:			expr = "(length / 1000f) / (Minutes / 60f)";
 				attribute<float32>	Minutes:		expr = "Seconds / float32(60)";
-				attribute<bool>		IsRail:			expr = "YearNet/IsRail";
+				attribute<bool>		IsRail:			expr = "YearNet/IsRail";	
+				attribute<bool>		ConnectsRail:= (NodeSet/ConnectsRail[F1] || NodeSet/ConnectsRail[F2]) && !IsRail;
 				attribute<bool>		IsAddition:		expr = "const(False, Network, bool)";
 				//attribute<bool>		IsBridge:		expr = "YearNet/IsBridge";
 				attribute<uint32>	OperatorId:		expr = "YearNet/OpNum";
@@ -77,8 +79,11 @@ container calcBenefits: using = "getInbetweens;PopulationModels;AdditionFlowSche
 					attribute<bool>		onRail:	 expr = "union_data(., Network/IsRail, Network/IsRail)";		
 				}
 				
-				unit<uint32> NodeSet: expr       = "unique(PointSet/point)", DialogData = "Values", DialogType = "Map"
-				{ attribute<point_rd> Values; attribute<uint32> Count: expr = "pcount(PointSet/Node)"; attribute<bool> OnRail: expr = "PointSet/onRail[rlookup(Values, PointSet/point)]";}		
+				unit<uint32> NodeSet: expr       = "unique(PointSet/point)", DialogData = "Values", DialogType = "Map" { 
+					attribute<point_rd> Values; attribute<uint32> Count: expr = "pcount(PointSet/Node)"; 
+					attribute<bool> OnRail: expr = "PointSet/onRail[rlookup(Values, PointSet/point)]";
+					attribute<bool> ConnectsRail:= any(IsRail, F1) || any(IsRail, F2);		
+				}		
 				
 				unit<uint32> YearStations: expr = "subset(NodeSet/OnRail)", DialogData = "centroid", DialogType = "map"
 				{ attribute<point_rd> centroid:		expr = "NodeSet/Values[Nr_OrgEntity]"; attribute<NodeSet> NetRef:	expr = "Nr_OrgEntity";	}
