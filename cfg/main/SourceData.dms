@@ -236,35 +236,18 @@ container SourceData: Using ="Units;params;PopulationModels;"
 				unit<uint32> PointSet: expr = "union_unit(Railroad_data, Railroad_data)"
 					{ attribute<point_rd> point:   expr = "union_data(PointSet, Railroad_data/first_point, Railroad_data/last_point)";}
 				
-				unit<uint32> NodeSet: expr       = "unique(PointSet/point)", DialogData = "Values", DialogType = "Map"
-					{ attribute<point_rd> Values; attribute<Investments> firstInvestId: expr = "min_elem(MakeDefined(rjoin(id(.), F1, InvestId), 9999), MakeDefined(rjoin(id(.), F2, InvestId), 9999))";}
+				unit<uint32> NodeSet: expr       = "unique(PointSet/point)", DialogData = "Values", DialogType = "Map" {
+					attribute<uint32> firstInvestId: expr = "min_elem(min(InvestId, F1)[uint32], min(InvestId, F2))";
+					}
 				unit<uint32> Concessies:	expr = "unique(Concessie)"
 				{
 					attribute<uint16> 		OpenYear: 	expr = "min(Open1, Concessie_id)";
 					attribute<float32>		Sequence: 	expr = "float32(OpenYear) + (float32(id(.)) / float32(100))";
-					attribute<Investments> 	InvestId:	expr = "rlookup(Sequence, Investments/Values)";
+					attribute<Investments> 	InvestId:	expr = "rlookup(Values[uint32], Investments/Concessie_num)";
 					attribute<float32>		Length:		expr = "sum(Railroad_data/length, Concessie_id)";
 					attribute<Years>		InYear_rel: expr = "classify(OpenYear, Years/Year[uint16])";
 					attribute<bool>			InWindow:	expr = "float32(OpenYear) - float32(Years/Year[InYear_rel]) < (RunSettings/LengthWindowSize + 1f)";
-				}
-				unit<uint32> Investments:	expr = "unique(Concessies/Sequence)"
-				{
-					attribute<.>			id:		expr = "id(.)";
-					attribute<uint16>		OpenYear:	expr = "min(Concessies/OpenYear, Concessies/InvestId)";
-					attribute<uint16> 	   	inYear: 	expr = "min_elem(dist_f_9 < uint16(10) ? OpenYear - dist_f_9: OpenYear, uint16(1929))";
-					attribute<PopulationModels/PopulationModelYears> PopulationModelYear: expr = "rlookup(uint32(inYear) + 10, PopulationModels/PopulationModelYears/Year)";
-					attribute<uint16>	   	dist_f_9:	expr = "uint16(10) - (uint16(9) - value(substr(string(OpenYear), 3, 1), uint16))";
-					attribute<Operators/Real_Operators>	Operator:	expr = "first(OperatorId, InvestId)";
-					attribute<float32>		InvLength:  expr = "sum(Concessies/length, Concessies/InvestId)";
-					attribute<float32> 		CumuLength: expr = "cumulate(InvLength)";
-					attribute<uint32>		State:= max(Railroad_data/Staat, Railroad_data/InvestId)[uint32];//uint32(Operators/Historical_Operators/State[Operator]);
-					attribute<uint32>		Local:= max(Railroad_data/LocalTrck, Railroad_data/InvestId)[uint32];
-					attribute<uint32>		Harbour:= uint32(max(Haven, InvestId));
-					attribute<uint32>		Capital:= uint32(max(ProvHoofd, InvestId));
-					attribute<uint32>		Border:=  uint32(max(BorderZone, InvestId));
-					attribute<LinkTypes>	LinkType:= switch(case(bool(State), 2[LinkTypes]), case(bool(Local), 3[LinkTypes]), 1[LinkTypes]);
-				}
-				
+				}				
 				unit<uint32> exp_net:= Railroad_data, StorageName = "%ProjDir%/results/railroads_info.dbf" {
 					attribute<point_rd> 	Geometry (arc):= line, StorageName = "%ProjDir%/results/railroads_info.shp";
 					attribute<string> 		Operator:= Expl;
@@ -273,7 +256,7 @@ container SourceData: Using ="Units;params;PopulationModels;"
 					attribute<string>		OpenDate:= '01-01-'+string(Openyear);
 				}
 			}
-			
+			#include<Investments.dms>
 			unit<uint32> EmptyNet:
 				StorageName     = "%dataDir%/emptynet/emptynet.dbf",
 				DialogData      = "line",
@@ -311,7 +294,7 @@ container SourceData: Using ="Units;params;PopulationModels;"
 				attribute<uint16>			Open_Year;
 				attribute<uint16>			Close_Year;
 				attribute<uint16>			Meetpunt;
-				attribute<Railroads/Railroad_data/Investments> InvestId: expr = "Railroads/Railroad_data/NodeSet/firstInvestId[rlookup(centroid,Railroads/Railroad_data/NodeSet/Values)]";
+				attribute<Railroads/Investments> InvestId: expr = "Railroads/Railroad_data/NodeSet/firstInvestId[rlookup(centroid,Railroads/Railroad_data/NodeSet/Values)]";
 				
 										
 				// connect with communities
@@ -324,7 +307,7 @@ container SourceData: Using ="Units;params;PopulationModels;"
 					attribute<float32>	Distance:		expr = "dist(ZonePoint, StationPoint)";
 					attribute<float32>  nearestDist:	expr = "getNearest/nearestDist[toStation]";
 					attribute<bool>		shortestConn:	expr = "Distance = nearestDist";
-					attribute<Railroads/Railroad_data/Investments> InvestId: expr = "RailStations/InvestId[second_rel]";
+					attribute<Railroads/Investments> InvestId: expr = "RailStations/InvestId[second_rel]";
 					container getNearest
 					{ attribute<float32> nearestDist (RailStations): expr = "min(Distance, toStation)"; }
 				}
@@ -354,7 +337,7 @@ container SourceData: Using ="Units;params;PopulationModels;"
 				attribute<float32>		ConnectorCost:	expr = "const(0, StationConnectLinks, float32)";
 				
 				
-				attribute<Railroads/Railroad_data/Investments> InvestId: expr = "RailStations/ZoneConnect/InvestId[Nr_OrgEntity]";
+				attribute<Railroads/Investments> InvestId: expr = "RailStations/ZoneConnect/InvestId[Nr_OrgEntity]";
 				
 				unit<uint32> createLines: expr = "union_unit(StationConnectLinks, StationConnectLinks)"
 				{
@@ -372,7 +355,7 @@ container SourceData: Using ="Units;params;PopulationModels;"
 				attribute<point_rd> 			line (arc): expr = "Railroads/Railroad_data/line[Nr_OrgEntity]";
 				attribute<float32>				costs:		expr = "Railroads/Railroad_data/ConnectorCost[Nr_OrgEntity]";
 				attribute<float32>				length:		expr = "arc_length(line, float32)";
-				attribute<uint32>				LinkType:	expr = "const(0, ., uint32)";
+				attribute<LinkTypes>			LinkType:= const(Railroads/Investments/LinkType[RunSettings/CurrentInvestment], ., LinkTypes);
 				attribute<point_rd>				from_point: expr = "first_point(line)";
 				attribute<point_rd>				to_point: 	expr = "last_point(line)";
 				attribute<Operators/Real_Operators> opid:= 	Railroads/Railroad_data/OperatorId[Nr_OrgEntity];
@@ -380,7 +363,7 @@ container SourceData: Using ="Units;params;PopulationModels;"
 			unit<uint32> ConnectorLinks: expr = "subset(Stations/StationConnectLinks/InvestConnect)"
 			{
 				attribute<point_rd> line (arc): 	expr = "Stations/StationConnectLinks/line[Nr_OrgEntity]";
-				attribute<uint32>	LinkType:		expr = "const(2, ., uint32)";
+				attribute<LinkTypes>LinkType:=		const(0[LinkTypes],.,LinkTypes);
 				attribute<Zones>	ConnectedZone:	expr = "point_in_polygon(last_point(line), Zones/vlak)";
 			}
 			unit<uint32> connectedZones: 		expr = "subset(!IsNull(rlookup(id(zones), ConnectorLinks/ConnectedZone)))"
@@ -403,7 +386,7 @@ container SourceData: Using ="Units;params;PopulationModels;"
 			unit<uint32> ConnectedInvestment: 	expr = "union_unit(InvestmentLinks, ConnectorLinks)", DialogData = "line", DialogType = "map"
 			{
 				attribute<point_rd>	line (arc): expr = "union_data(., InvestmentLinks/line, ConnectorLinks/line)";
-				attribute<uint32>	LinkType:	expr = "union_data(., InvestmentLinks/LinkType, ConnectorLinks/LinkType)";
+				attribute<LinkTypes>LinkType:	expr = "union_data(., InvestmentLinks/LinkType, ConnectorLinks/LinkType)";
 				attribute<float32>	Costs:		expr = "union_data(., InvestmentLinks/Costs, const(0,ConnectorLinks,float32))";
 				attribute<float32>	Length:		expr = "arc_length(line, float32)";
 				attribute<string>	Code:		expr = "const('c_' + string(RunSettings/CurrentInvestment),.,string)";
@@ -463,6 +446,7 @@ container SourceData: Using ="Units;params;PopulationModels;"
 			attribute<float32>	length:			expr = "arc_length(line, float32)";
 			attribute<uint16>	Open_Year:		expr = "const(0, Road_data, uint16)";
 			attribute<uint16>	Close_Year:		expr = "const(9999, Road_data, uint16)";
+			attribute<LinkTypes>LinkType:=		const(0,.,LinkTypes);
 			attribute<bool>		IsRail:			expr = "const(false, Road_data, bool)";
 			attribute<uint32>  	InvestId:		expr = "const(0 / 0,.,uint32)";
 			attribute<s>		Seconds:		expr = "value(length / (WalkKmh / float32(3.6)),s)";

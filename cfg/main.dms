@@ -189,7 +189,7 @@ Container TransportLinkScanner
 			attribute<uint32>   FirstModelledInvestment:		expr = "uint32(IsDefined(strpos(Name, 'Northern')))";
 		}
 		//parameter<uint16> CheckWithRealInvestments: expr = "min(SourceData/Railroads/Railroads/Railroad_data/Investments/CumuLength < sum(StartNet/RailNetwork/length) ? uint16(9999) : SourceData/Railroads/Railroads/Railroad_data/Investments/OpenYear)";
-		parameter<uint16> CheckWithRealInvestments:= Scenarios/modelRealInvestments[ScenarioId] ? SourceData/Railroads/Railroads/Railroad_data/Investments/OpenYear[CurrentInvestment] : SourceData/Railroads/Railroads/Railroad_data/Investments/OpenYear[classify(sum(StartNet/RailNetwork/length * float32(StartNet/RailNetwork/IsRail)), SourceData/Railroads/Railroads/Railroad_data/Investments/CumuLength)];
+		parameter<uint16> CheckWithRealInvestments:= Scenarios/modelRealInvestments[ScenarioId] ? SourceData/Railroads/Railroads/Investments/OpenYear[CurrentInvestment] : SourceData/Railroads/Railroads/Investments/OpenYear[classify(sum(StartNet/RailNetwork/length * float32(StartNet/RailNetwork/IsRail)), SourceData/Railroads/Railroads/Investments/CumuLength)];
 		unit<uint32> ScenariosXOperators: expr = "combine(Scenarios, Operators/Operators)"
 		{
 			attribute<upoint> attId:expr = "point(first_rel, second_rel, upoint)";

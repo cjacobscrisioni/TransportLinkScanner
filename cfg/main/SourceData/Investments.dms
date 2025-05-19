@@ -1,0 +1,110 @@
+parameter<uint32> nr_investments:= 74;
+parameter<uint32> nr_attributes:= 7;
+
+unit<uint32> Investments:= range(uint32,0,nr_investments) {
+	attribute<.> id:= id(.);
+	attribute<uint32> Concessie_num:= uint32(inmatrix/elements[0+(id(.)*nr_attributes)[inmatrix]]);
+	attribute<uint16> OpenYear:= uint16(inmatrix/elements[1+(id(.)*nr_attributes)[inmatrix]]);
+	attribute<string> OpName:= string(inmatrix/elements[2+(id(.)*nr_attributes)[inmatrix]]);
+	attribute<InvestorTypes> InvType:= uint32(inmatrix/elements[3+(id(.)*nr_attributes)[inmatrix]])[InvestorTypes];
+	attribute<OperatorTypes> OpType:= uint32(inmatrix/elements[4+(id(.)*nr_attributes)[inmatrix]])[OperatorTypes];
+	attribute<string> Label:= string(inmatrix/elements[5+(id(.)*nr_attributes)[inmatrix]]);
+	attribute<string> notes:= string(inmatrix/elements[6+(id(.)*nr_attributes)[inmatrix]]);
+	
+	attribute<uint16> 	   	inYear: 	expr = "min_elem(dist_f_9 < uint16(10) ? OpenYear - dist_f_9: OpenYear, uint16(1929))";
+	attribute<PopulationModels/PopulationModelYears> PopulationModelYear: expr = "rlookup(uint32(inYear) + 10, PopulationModels/PopulationModelYears/Year)";
+	attribute<uint16>	   	dist_f_9:	expr = "uint16(10) - (uint16(9) - value(substr(string(OpenYear), 3, 1), uint16))";
+					
+	attribute<Operators/Real_Operators>	Operator:	expr = "rlookup(OpName, Operators/Real_Operators/name)";
+	attribute<float32>		InvLength:  expr = "sum(Railroad_data/Concessies/length, Railroad_data/Concessies/InvestId)";
+	attribute<float32> 		CumuLength: expr = "cumulate(InvLength)";
+	//attribute<uint32>		State:= max(Railroad_data/Staat, Railroad_data/InvestId)[uint32];//uint32(Operators/Historical_Operators/State[Operator]);
+	//attribute<uint32>		Local:= max(Railroad_data/LocalTrck, Railroad_data/InvestId)[uint32];
+	attribute<uint32>		Harbour:= uint32(max(Railroad_data/Haven, Railroad_data/InvestId));
+	attribute<uint32>		Capital:= uint32(max(Railroad_data/ProvHoofd, Railroad_data/InvestId));
+	attribute<uint32>		Border:=  uint32(max(Railroad_data/BorderZone, Railroad_data/InvestId));
+	
+	attribute<LinkTypes>	LinkType:= InvestorTypes/LinkType[InvType];	
+	
+	unit<uint32> inmatrix:= range(uint32, 0, nr_attributes * nr_investments) {
+
+	attribute<string> elements: [
+		//'Concessie',	'OpenYear',	'opname',	'InvType',	'OpType',	'Label',	'Notes',
+		'1',	'1839',	'HSM',	'0',	'0',	'Amsterdam - Haarlem',	'',
+		'2',	'1842',	'HSM',	'0',	'0',	'Haarlem - Den Haag - Rotterdam',	'',
+		'12',	'1843',	'NRS',	'0',	'0',	'Amsterdam - Utrecht - Arnhem - Emmerich (DE)',	'',
+		'32',	'1853',	'GCB',	'4',	'4',	'Aachen (DE) - Maastricht',	'Taken over by GCB in 1867',
+		'21',	'1854',	'GCB',	'4',	'4',	'Antwerpen - Lage Zwaluwe / Breda',	'',
+		'13',	'1855',	'NRS',	'0',	'0',	'Utrecht - Rotterdam',	'',
+		'30',	'1861',	'LM',	'4',	'4',	'Liege (BE) - Maastricht',	'Noted to open only in 1861',
+		'33',	'1863',	'NCS',	'0',	'0',	'Utrecht - Amersfoort - Zwolle - Kampen',	'Conceded in 1863, final piece only opened in 1865 (Zwolle - Kampen)',
+		'36',	'1863',	'SS',	'1',	'1',	'Stateline B Harlingen - Groningen - Leeuwarden - Bad Nieuweschans',	'Opened in 1866',
+		'41',	'1863',	'SS',	'1',	'1',	'Stateline E Breda - Tilburg - Eindhoven - Maastricht',	'Opened between 1863 and 1866',
+		'42',	'1863',	'SS',	'1',	'1',	'Stateline F Roosendaal - Vlissingen',	'Opened between 1863 and 1872, last bit was late connection from Vlissingen to its port)',
+		'4',	'1865',	'HSM',	'1',	'0',	'Stateline K Amsterdam - Alkmaar - Den Helder',	'First bit opened in 1865, Zaandam connected by 1869, Amsterdam only in 1878',
+		'38',	'1865',	'SS',	'1',	'1',	'Stateline A Arnhem - Zwolle - Leeuwarden',	'Opened between 1865 and 1868',
+		'39',	'1865',	'SS',	'1',	'1',	'Stateline D Zutphen - Hengelo - Glanerbrug',	'Zutphen - Hengelo opened in 1865, other connections until 1868',
+		'55',	'1865',	'NSM',	'4',	'4',	'Nijmegen - Kleve (DE)',	'Opened in 1865 (line doubled with state line, Maaslijn , from 1883). Constructed by company consisting of representatives from Nijmegen and Germany.',
+		'43',	'1866',	'SS',	'1',	'1',	'Stateline I Rotterdam - Breda',	'Opened between 1866 and 1872',
+		'52',	'1866',	'LLM',	'4',	'4',	'Railway line 18 Winterslag (BE) - Eindhoven',	'Operated by the Luik-Limburg Spoorweg',
+		'22',	'1867',	'GCB',	'4',	'4',	'Bels Lijntje Tilburg - Turnhout',	'Operated by GCB',
+		'48',	'1868',	'SS',	'1',	'1',	'Stateline H Utrecht - Boxtel',	'Opened between 1868 - 1897-',
+		'14',	'1869',	'NRS',	'0',	'0',	'Connection Breukelen - Woerden',	'Opened 1869',
+		'20',	'1869',	'GCB',	'4',	'4',	'Railway line 54 Mechelen (BE) - Terneuzen',	'Opened between 1870 and 1872, SociÃ©tÃ© Anonyme du Chemin de Fer International de Malines Ã  Terneuzen',
+		'16',	'1870',	'NRS',	'0',	'0',	'Gouda  - Utrecht',	'Opened in 1870',
+		'50',	'1870',	'SS',	'1',	'1',	'Stateline C Meppel - Groningen',	'Opened in 1870',
+		'10',	'1874',	'HSM',	'0',	'0',	'Amsterdam - Zutphen, branch to Utrecht Maliebaan',	'Opened between 1874 and 1876. The extension from Zutphen to Winterswijk was constructed by NWS and was built by 1880. Only became HSM property in 1926. ',
+		'44',	'1876',	'SS',	'1',	'1',	'Lage Zwaluwe - Den Bosch',	'Opened in full in 186',
+		'56',	'1878',	'NBDS',	'0',	'0',	'Boxtel - Wesel (DE) (German line)',	'Opened only in 1878',
+		'9',	'1878',	'HSM',	'1',	'0',	'Connection Amsterdam West - Amsterdam East',	'State investment. Amsterdam Central Station opened in 1878',
+		'15',	'1878',	'NRS',	'0',	'0',	'Woerden - Leiden',	'Opened in 1878',
+		'46',	'1879',	'SS',	'1',	'1',	'Stateline Arnhem - Nijmegen',	'Opened in 1879',
+		'53',	'1879',	'GCB',	'4',	'4',	'Iron Rhine Ruhr - Antwerp',	'Opened in 1879',
+		'29',	'1881',	'HZSM',	'2',	'2',	'Haarlem - Zandvoort',	'Opened in 1881. From 1889 operated by HSM. Transformed to main railway in 1902. HZSM became part of HSM in 1925.',
+		'40',	'1881',	'SS',	'1',	'1',	'Zwolle- Almelo',	'Opened in 1881.',
+		'57',	'1881',	'KNLS',	'2',	'2',	'All KNLS lines',	'Opened between 1887 and 1913, better split into several investments (see separate tab)',
+		'58',	'1881',	'NZOS',	'0',	'0',	'Tilburg - Den Bosch - Nijmegen',	'Opened in 1881, operated by SS from 1883',
+		'45',	'1882',	'SS',	'1',	'1',	'Betuweline Elst - Dordrecht',	'Opened in 1882',
+		'47',	'1883',	'SS',	'1',	'1',	'Maaslijn Nijmegen - Venlo',	'Only opened in 1883 (corroborated by other sources)',
+		'28',	'1883',	'HSM',	'2',	'0',	'Ijmond line Santpoort - Ijmuiden',	'Opened in 1883,operated by HSM',
+		'49',	'1883',	'HSM',	'1',	'1',	'Stavoren - Leeuwarden',	'Opened fully in 1885; operated by HSM from 1890 onwards (ditto in the connection to Enkhuizen)',
+		'5',	'1884',	'HSM',	'1',	'0',	'Zaandam - Enkhuizen',	'Built by the state, operated by HSM',
+		'25',	'1884',	'HSM',	'2',	'2',	'GOLS local lines (Zevenaar - Ruurlo - Winterswijk - Hengelo - Enschede)',	'Best split in two investments, namely Winterswijk - Neede - Boekelo - Hengelo / Enschede (with branch to Ruurlo), 1884, and Zevenaar - Doetinchem - Winterswijk, with branch from Doetinchem to Ruurlo) (1885). Technically though the split from Boekelo to Enschede was only completed in 1885. Operated by HSM (operation contested by SS).',
+		'37',	'1884',	'SS',	'1',	'1',	'Groningen - Delfzijl',	'',
+		'11',	'1886',	'HSM',	'1',	'0',	'Amersfoort - Rhenen - Kesteren',	'',
+		'6',	'1887',	'HSM',	'2',	'0',	'Hoorn - Medemblik',	'Investment from local consortium',
+		'19',	'1890',	'EO',	'2',	'2',	'Enschede - Oldenzaal',	'',
+		'3',	'1891',	'HSM',	'1',	'0',	'Rotterdam - Hoek van Holland',	'State funded, hsm operated',
+		'23',	'1893',	'GLS',	'2',	'2',	'Sauwerd - Roodeschool',	'',
+		'61',	'1896',	'NZSM',	'2',	'2',	'Sittard - Herzogenrath (DE)',	'',
+		'7',	'1898',	'HSM',	'0',	'0',	'Alkmaar - Hoorn',	'',
+		'34',	'1898',	'NCS',	'2',	'0',	'Stichtse line Den Dolder - Baarn',	'Investment from local consortium (ULS), operated by NCS',
+		'35',	'1901',	'NCS',	'2',	'0',	'Bilthoven - Zeist',	'Investment from local consortium (NBM), operated by NCS',
+		'62',	'1901',	'NFLS',	'2',	'2',	'Leeuwarden - Stiens - Harlingen / Anjum',	'Last bit (to Anjum) only completed in 1913. Best split into two connections Leeuwarden - Anjum and Stiens - Harlingen',
+		'65',	'1902',	'NCS',	'2',	'0',	'Nijkerk - Ede/Wageningen',	'Investments from local consortium (De Veluwe), operated by NCS',
+		'17',	'1903',	'AEE',	'4',	'4',	'Enschede - Ahaus',	'',
+		'63',	'1903',	'NOLS',	'2',	'2',	'NOLS local lines except Stadskanaal - Zuidbroek and Zuidbroek - Delfzijl',	'Maybe split into Zwolle - Stadskanaal, Marienberg - Almelo (branch), Gasselternijveen - Assen (branch)',
+		'18',	'1904',	'DV',	'2',	'2',	'Varsseveld - Dinxperlo',	'',
+		'59',	'1907',	'ZHESM',	'2',	'2',	'Den Haag NOI - Scheveningen',	'',
+		'60',	'1908',	'ZHESM',	'2',	'2',	'Rotterdam - Den Haag',	'',
+		'8',	'1910',	'HSM',	'2',	'0',	'Neede - Hellendoorn',	'Investment from local consortium (LMNH), operated by HSM',
+		'64',	'1910',	'NOLS',	'2',	'2',	'Stadskanaal - Delfzijl',	'',
+		'66',	'1910',	'OLDO',	'2',	'2',	'Deventer - Ommen',	'',
+		'26',	'1912',	'HESM',	'2',	'2',	'Haarlemmermeer lines Haarlem - Hoofddorp - Leiden (branch to Aalsmeer)',	'',
+		'54',	'1913',	'SS',	'1',	'1',	'Eindhoven - Weert',	'',
+		'27',	'1914',	'HESM',	'2',	'2',	'Haarlemmermeer lines Amsterdam - Uithoorn - Alphen, branches to Aalsmeer and Loenen',	'',
+		'51',	'1915',	'SS',	'1',	'1',	'Heerlen - Schin op Geul',	'',
+		'24',	'1922',	'GLS',	'2',	'2',	'Winsum - Zoutkamp',	'',
+		'74',	'1924',	'STAR',	'2',	'2',	'Stadskanaal - Ter Apel State border',	'Supposed to be connecting to railway line in Germany that never came, taken out of service after two years.',
+		'67',	'1929',	'NS',	'2',	'1',	'Groningen - Delfzijl "Woldjer railway line "',	'Operated by SS, funded by local investors',
+		'72',	'1934',	'NS',	'1',	'1',	'Gouda - Alphen aan de Rijn',	'',
+		'75',	'1949',	'NS',	'1',	'1',	'unknown',	'',
+		'73',	'1953',	'NS',	'1',	'1',	'unknown',	'',
+		'71',	'1977',	'NS',	'1',	'1',	'unknown',	'',
+		'68',	'1988',	'NS',	'1',	'1',	'Flevolijn Amsterdam - Lelystad',	'Flevolijn Amsterdam - Lelystad',
+		'70',	'1981',	'NS',	'1',	'1',	'unknown',	'',
+		'69',	'1986',	'NS',	'1',	'1',	'Amsterdam Centraal - Schiphol',	'Amsterdam Centraal - Schiphol'
+		];
+	}
+}
+
