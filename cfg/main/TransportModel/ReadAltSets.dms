@@ -51,7 +51,7 @@ container getInbetweens: Using = "Units;PopulationModels;params;"
 		parameter<uint32> inPeriodAltSet;
 		parameter<string> routename: expr = "string(PeriodAltSets/Values[inPeriodAltSet])";
 		
-		unit<uint32> inroute: expr = "subset(PeriodAltLines/PeriodAltSet_id = inPeriodAltSet && PeriodAltLines/LinkType = 0)", DialogData = "line", DialogType = "map"
+		unit<uint32> inroute: expr = "subset(PeriodAltLines/PeriodAltSet_id = inPeriodAltSet && PeriodAltLines/LinkType <> LinkTypes/V/Walking)", DialogData = "line", DialogType = "map"
 		{
 			attribute<point_rd> line (arc): expr = "PeriodAltLines/line[nr_OrgEntity]";
 			attribute<float32>  Costs:		expr = "PeriodAltLines/AccountedCosts[nr_OrgEntity]";
@@ -90,13 +90,13 @@ container getInbetweens: Using = "Units;PopulationModels;params;"
 		{
 			attribute<point_rd> line (arc): expr = "UnionData";
 			attribute<float32>	Costs:		expr = "MakeDefined(inroute/costs[Nr_OrgEntity], float32(0))";
-			attribute<LinkTypes>linktype:= 	switch(case(!bool(IsRail), 0[LinkTypes]), case(bool(Operators/Operators/State)[OpNum], 2[LinkTypes]), case(bool(Operators/Operators/Local)[OpNum], 3[LinkTypes]), 1[LinkTypes]);
+			attribute<LinkTypes>LinkType:= 	makedefined(inroute/LinkType[nr_OrgEntity], LinkTypes/V/Walking);
 			attribute<bool>		isRail:		expr = "isdefined(nr_OrgEntity) ? True : False";
 			attribute<bool> 	isBridge:	expr = "const(false, ., bool)";
 			attribute<bool>		isAddition: expr = "const(True, ., bool)";
 			attribute<Operators/Operators>	OperatorId:	expr = "const(OpNum,.,Operators/Operators)";
 			attribute<LinkTypes>inv_type:= 	switch(case(!bool(IsRail), 0[LinkTypes]), case(bool(Operators/Operators/State)[OperatorId], 2[LinkTypes]), case(bool(Operators/Operators/Local)[OperatorId], 3[LinkTypes]), 1[LinkTypes]);
-			attribute<s>		Seconds:=	length / LinkTypes/speeds[inv_type];
+			attribute<s>		Seconds:=	length / LinkTypes/speeds[inv_type] + float32(isnull(nr_OrgEntity)) * (Params/WaitingSeconds / 2f), descr = "added penalty for waiting on connectors";
 			attribute<m>		length: 	expr = "arc_length(line, m)";
 			//attribute<s>		Seconds:	expr = "isRail ? length / TrainSpeed: (length / WalkSpeed) + WaitingSeconds";  
 			

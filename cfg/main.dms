@@ -9,7 +9,7 @@ Container TransportLinkScanner
 		parameter<bool> 	   NewRun: 				expr = "CurrentInvestment = 0";	// True"; // keeps track of whether this is the first investment or not.
 		parameter<Scenarios>   ScenarioId:			expr = "rlookup(ActiveScenarioName, Scenarios/Name)";
 		//parameter<Scenarios>   ScenarioId:			expr = "rlookup('notelastic_r1_md_0_r0', Scenarios/Name)";
-		parameter<uint32> 	   CurrentInvestment:	expr = "27";//sum(InvestmentTracker/InvestId)", KeepData = "False"; //0", KeepData = "False"; //40", KeepData = "False"; //24", KeepData = "False"; //40", KeepData = "False"; // 
+		parameter<uint32> 	   CurrentInvestment:	expr = "sum(InvestmentTracker/InvestId)", KeepData = "False"; //0", KeepData = "False"; //40", KeepData = "False"; //24", KeepData = "False"; //40", KeepData = "False"; // 
 		parameter<uint16>	   OpenYear:			expr = "CheckWithRealInvestments";//uint16(sum(InvestmentTracker/Year))"; //uint16(1850)"; //
 		parameter<uint16> 	   inYear:=				uint16(Years/Year[classify(Openyear, Years/Year[uint16])]);
 		
@@ -45,11 +45,11 @@ Container TransportLinkScanner
 				'calib_elastic_local_speed',	'0',	'curr_costs',				'logit_w_elasticity',		'calib',				'ObservedDynamic',		'true',				'0',			'9',				'1',
 			//	'calib_elastic',				'0',	'curr_costs',				'logit_w_elasticity',		'calib',				'ObservedDynamic',		'true',				'0',			'9',				'1',
 				//'calib_elastic_cc_se',			'0',	'curr_costs_state_eval',	'logit_w_elasticity',		'calib',				'ObservedDynamic',		'true',				'0',			'9',				'1',
-				'calib_elastic_rnd_speed_inc_local_speed',			'0',	'curr_costs_state_eval',	'RandomModel',				'calib',				'ObservedDynamic',		'true',				'0',			'9',				'1',
-				'calib_elastic_rnd_shortest_speed_inc_local_speed',	'0',	'curr_costs_state_eval',	'RandomModel',				'calib',				'ObservedDynamic',		'true',				'0',			'9',				'1',
-				'calib_elastic_ms0_speed_inc_local_speed',			'0',	'curr_costs_state_eval',	'simplified_mod0',			'calib',				'ObservedDynamic',		'true',				'0',			'9',				'1',
-				'calib_elastic_ms1_speed_inc_local_speed',			'0',	'curr_costs_state_eval',	'simplified_mod1',			'calib',				'ObservedDynamic',		'true',				'0',			'9',				'1',
-				'calib_elastic_ms2_speed_inc_local_speed',			'0',	'curr_costs_state_eval',	'simplified_mod2',			'calib',				'ObservedDynamic',		'true',				'0',			'9',				'1',
+				'calib_elastic_rnd_speed_inc_local_speed',			'0',	'curr_costs',	'RandomModel',				'calib',				'ObservedDynamic',		'true',				'0',			'9',				'1',
+				'calib_elastic_rnd_shortest_speed_inc_local_speed',	'0',	'curr_costs',	'RandomModel',				'calib',				'ObservedDynamic',		'true',				'0',			'9',				'1',
+				'calib_elastic_ms0_speed_inc_local_speed',			'0',	'curr_costs',	'simplified_mod0',			'calib',				'ObservedDynamic',		'true',				'0',			'9',				'1',
+				'calib_elastic_ms1_speed_inc_local_speed',			'0',	'curr_costs',	'simplified_mod1',			'calib',				'ObservedDynamic',		'true',				'0',			'9',				'1',
+				'calib_elastic_ms2_speed_inc_local_speed',			'0',	'curr_costs',	'simplified_mod2',			'calib',				'ObservedDynamic',		'true',				'0',			'9',				'1',
 				'calib_notelastic_speed_inc_local_speed',	'0',	'curr_costs',				'logit_no_elasticity',		'calib',				'ObservedDynamic',		'true',				'0',			'9',				'1',
 			//	'calib_notelastic_speed_inc',	'0',	'curr_costs',				'logit_no_elasticity',		'calib',				'ObservedDynamic',		'true',				'0',			'9',				'1',
 				'calib_notelastic_local_speed',	'0',	'curr_costs',				'logit_no_elasticity',		'calib',				'ObservedDynamic',		'true',				'0',			'9',				'1',

@@ -59,15 +59,23 @@ Container LinkCosts: using = "Units;SourceData;" {
 			attribute<float32> length_m:= dist(point, nextpoint)[float32];
 			attribute<float32> costs_until_1851:= mean(samples/costs_until_1851, samples/SequenceNr) * length_m;
 			attribute<float32> costs_from_1852:= mean(samples/costs_from_1852, samples/SequenceNr) * length_m;
+			attribute<float32> water_until_1851:= mean(samples/water_until_1851, samples/SequenceNr) * length_m;
+			attribute<float32> water_from_1852:= mean(samples/water_from_1852, samples/SequenceNr) * length_m;
+			
+			
 		}
 		unit<uint32> samples:= dyna_point_with_ends(segments/point, segments/nextpoint, sample_res) {
 			attribute<CostsGrid> cg_rel:= point[CostsGrid];
+			attribute<float32> water_until_1851:= float32(CostsGrid/water_until_1851)[cg_rel];
+			attribute<float32> water_from_1852:= float32(CostsGrid/water_from_1852)[cg_rel];
 			attribute<float32> costs_until_1851:= CostsGrid/costs_until_1851[cg_rel];
 			attribute<float32> costs_from_1852:= CostsGrid/costs_from_1852[cg_rel];
 		}
 		unit<uint32> outset:= in_set {
 			attribute<float32> costs_until_1851:= sum(segments/costs_until_1851, segments/SequenceNr);
 			attribute<float32> costs_from_1852:= sum(segments/costs_from_1852, segments/SequenceNr);
+			attribute<float32> water_until_1851:= sum(segments/water_until_1851, segments/SequenceNr);
+			attribute<float32> water_from_1852:= sum(segments/water_from_1852, segments/SequenceNr);
 		}
 		
 	}

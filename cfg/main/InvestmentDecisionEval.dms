@@ -91,7 +91,7 @@ Container InvestmentDecision: Using = "RunSettings;LinkBenefits/calcBenefits;Lin
 		{
 			attribute<uint32> InvestId:	expr = "const(uint32(RunSettings/CurrentInvestment),.,uint32) + 1";
 			attribute<uint32> Year:		expr = "IsNull(MostLikelyLink) ? const(uint32(RunSettings/InYear) + 10,.,uint32) : "
-				"switch(case(RunSettings/Scenarios/modelRealInvestments[RunSettings/ScenarioId], uint32(SourceData/Railroads/Railroads/Railroad_data/Investments/OpenYear)[RunSettings/CurrentInvestment + 1]),"
+				"switch(case(RunSettings/Scenarios/modelRealInvestments[RunSettings/ScenarioId], uint32(SourceData/Railroads/Railroads/Investments/OpenYear)[RunSettings/CurrentInvestment + 1]),"
 				"const(uint32(RunSettings/OpenYear) + params/yearsBetweenInvestments,.,uint32))";
 		}
 		
@@ -142,7 +142,7 @@ Container InvestmentDecision: Using = "RunSettings;LinkBenefits/calcBenefits;Lin
 		attribute<float32> bRailFlows:  	expr = "const(BaseNetworkFlows/RailFlows,.,float32)";
 		attribute<float32> aRailFlows: 		expr = "= 'union_data(.,'+ AsItemList('InvestmentDecision/AdditionFlows/'+ PeriodAltSets/uniqueCode +'/RailFlows') + ')'";
 		attribute<float32> FlwOnAdd: 		expr = "= 'union_data(.,'+ AsItemList('InvestmentDecision/AdditionFlows/'+ PeriodAltSets/uniqueCode +'/AddRailFlows') + ')'";
-		attribute<float32> aMaxLen:			expr = "= 'float32(union_data(.,'+ AsItemList('InvestmentDecision/AdditionFlows/'+ PeriodAltSets/uniqueCode +'/NetworkDiameter') + '))'";
+//		attribute<float32> aMaxLen:			expr = "= 'float32(union_data(.,'+ AsItemList('InvestmentDecision/AdditionFlows/'+ PeriodAltSets/uniqueCode +'/NetworkDiameter') + '))'";
 		attribute<float32> bt_acc:			expr = "const(BaseFlows/AccessibilityLevels/theil, ., float32)";
 		attribute<float32> bs_acc:			expr = "const(BaseFlows/AccessibilityLevels/summed_access, ., float32)"; //, StorageName = "= CollectionStoragePlace";
 		attribute<float32> at_acc:			expr = "= 'union_data(.,'+ AsItemList('PotentialAdditions/AccessibilityLevels/' + getInbetweens/PeriodAltSets/uniqueCode + '/theil')+ ')'";

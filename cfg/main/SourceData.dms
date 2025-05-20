@@ -24,66 +24,21 @@ container SourceData: Using ="Units;params;PopulationModels;"
 			attribute<point_rd> line (arc):  StorageName = "%dataDir%/altnet/target_lines_31mrt14.shp",	StorageReadOnly = "True", SyncMode = "none";
 			attribute<float32>	Length: 	expr = "arc_length(line, float32)";
 			
+			container obs_costs:= LinkCosts/lines_costs_constructor(10f, ., line);
 			
-			attribute<float32>  s_0;
-			attribute<float32>  s_1;
-			attribute<float32>  s_2;
-			attribute<float32>  s_3;
-			attribute<float32>  s_4;
-			attribute<float32>  s_5;
-			attribute<float32>  s_6;
-			attribute<float32>  s_7;
-			attribute<float32>	w_2013;
-			attribute<float32>	m_NL_1851;
-			attribute<float32>	m_NL_1930;
-			attribute<string> 	NoWater;
-			attribute<uint32>   NoWater_uint32: expr = "value(NoWater, uint32)";
-			
-			attribute<float32> 	water_1851: expr = "!bool(NoWater_uint32) ? min_elem(max_elem(s_0, w_2013, length - m_NL_1851), length): float32(0)";
-			attribute<float32>  water_1930: expr = "!bool(NoWater_uint32) ? min_elem(max_elem(s_0, w_2013, length - m_NL_1930), length): float32(0)";
-			
-			attribute<float32>	dif_water_est: expr = "s_0 - (length - m_NL_1851)";
-			
-			container c1851: expr = "for_each_nedv('c_' + Soils/net_id, Soils/exec1851, baseNet, float32)" 
-			{
-				container getCosts: expr = "for_each_nedv(Soils/net_id, "
-					"'iif(c1851/c_' + Soils/net_id + ' > float32(1), (c1851/c_' + Soils/net_id + ') * float32(' + string(Soils/CostPm) + '), float32(0))', "
-					"baseNet, float32)";
-				container getCostsSq: expr = "for_each_nedv(Soils/net_id, "
-					"Soils/Type < 2[uint8] ? "					
-						"'iif(c1851/c_' + Soils/net_id + ' > float32(1), (c1851/c_' + Soils/net_id + ') * float32(' + string(Soils/CostPm) + '), float32(0))' : "
-						"'iif(c1851/c_' + Soils/net_id + ' > float32(1), (c1851/c_' + Soils/net_id + ') * float32(' + string(Soils/CostPm) + ') * params/WaterCrossingCosts/curr_mod, float32(0))', "
-					"baseNet, float32)";
-				attribute<float32>  Costs 	(baseNet):	expr = "= 'add(' + AsItemList('getCosts/' + Soils/net_Id) + ')'";
-				attribute<float32>  CostsSq (baseNet):	expr = "= 'add(' + AsItemList('getCostsSq/' + Soils/net_Id) + ')'";
-			}
-			container c1930: expr = "for_each_nedv('c_' + Soils/net_id, Soils/exec1930, baseNet, float32)"
-			{
-				container getCosts: expr = "for_each_nedv(Soils/net_id, "
-					"Soils/Type < 2[uint8] ? "
-						"'iif(c1930/c_' + Soils/net_id + ' > float32(1), (c1930/c_' + Soils/net_id + ') * float32(' + string(Soils/CostPm) + '), float32(0))' : "
-						"'iif(c1930/c_' + Soils/net_id + ' > float32(1), (c1930/c_' + Soils/net_id + ') * float32(' + string(Soils/CostPm) + ')*float32(10), float32(0))', "
-					"baseNet, float32)";	
-				container getCostsSq: expr = "for_each_nedv(Soils/net_id, "
-					"'iif(c1930/c_' + Soils/net_id + ' > float32(1), (c1930/c_' + Soils/net_id + ') * float32(' + string(Soils/CostPm) + '), float32(0))', "
-					"baseNet, float32)";	
-				attribute<float32>  Costs (baseNet):	expr = "= 'add(' + AsItemList('getCosts/' + Soils/net_Id) + ')'";
-				attribute<float32>  CostsSq (baseNet):	expr = "= 'add(' + AsItemList('getCostsSq/' + Soils/net_Id) + ')'";
-			}
-			attribute<float32> costs_1851: 		expr = "c1851/Costs";
-			attribute<float32> costs_1930: 		expr = "c1930/Costs";
-			attribute<float32> costs_1851sq: 	expr = "c1851/CostsSq";
-			attribute<float32> costs_1930sq:	expr = "c1930/CostsSq";
+			attribute<float32> costs_1851: 		expr = "obs_costs/outset/costs_until_1851";
+			attribute<float32> costs_1930: 		expr = "obs_costs/outset/costs_from_1852";
+			attribute<float32> costs_1851sq: 	expr = "costs_1851^2f";
+			attribute<float32> costs_1930sq:	expr = "costs_1930^2f";
 			attribute<float32> random:			expr = "rnd_uniform(params/RandomSeed, ., range(float32, float32(0), float32(1000)))";
-			attribute<float32> RietveldBruinsma_costs: expr = "Length / float32(1000) + (float32(20) * float32(RunSettings/inYear < uint16(1852) && water_1851 > float32(250))) + (float32(20) * float32(RunSettings/inYear >= uint16(1852) && water_1930 > float32(250)))";
+			attribute<float32> RietveldBruinsma_costs: expr = "Length / float32(1000) + (float32(20) * float32(RunSettings/inYear < uint16(1852) && obs_costs/outset/water_until_1851 > float32(250))) + (float32(20) * float32(RunSettings/inYear >= uint16(1852) && obs_costs/outset/water_from_1852 > float32(250)))";
 			attribute<float32> curr_costs: 		expr = "RunSettings/OpenYear < uint16(1852) ? costs_1851 : costs_1930";
 			attribute<float32> curr_costs_state_eval: expr = "Operators/StateActivation < RunSettings/OpenYear ? curr_costs_sq : curr_costs";
 			attribute<float32> equal_costs:		expr = "length";
 			attribute<float32> curr_costs_sq: 	expr = "RunSettings/OpenYear < uint16(1852) ? costs_1851sq : costs_1930sq";
 			attribute<float32> costs: 			expr = "= RunSettings/Scenarios/costfield_eval[RunSettings/ScenarioId]";
 			
-			
-			attribute<float32> costs1851P100m: expr = "(costs_1851 / length) * float32(100)";
+		
 					
 			attribute<point_rd> first_point: expr = "first_point(line)";
 			attribute<point_rd> last_point:  expr = "last_point(line)";

@@ -109,7 +109,7 @@ Container AdditionFlowSchemes: using = "getInbetweens;PopulationModels;params;"
 			attribute<point_rd> UnionData(arc): expr = "union_data(Network, BaseNetwork/UnionData, NetworkAddition/line)";
 			attribute<point_rd> Line (arc):		expr = "UnionData";
 			attribute<float32>	Speed:			expr = "Km / (Minutes / 60f)";
-			attribute<s>       	Seconds: 		expr = "union_data(Network, BaseNetwork/Seconds, NetworkAddition/Seconds) +  (float32(ConnectsRail) * (Params/WaitingSeconds / 2f))";
+			attribute<s>       	Seconds: 		expr = "union_data(Network, BaseNetwork/Seconds, NetworkAddition/Seconds)", descr = "Add basenetwork and addition impedances. Both derive from LinkTypes via InvestorTypes. Penalties for waiting added in basenetwork and separate addition.";
 			attribute<float32>	Minutes:		expr = "Seconds / float32(60)";
 			attribute<float32>	Km:				expr = "arc_length(UnionData, float32) / 1000f";
 			attribute<point_rd> first_point: 	expr = "first_point(UnionData)";

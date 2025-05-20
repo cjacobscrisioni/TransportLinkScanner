@@ -9,8 +9,8 @@ Container NetworksPreparation: Using = "Units;SourceData;PopulationModels;Source
 	{
 		parameter<uint32> inYear;
 	
-		unit<uint32> LinkTypes: NrOfRows = 5
-		{attribute<string> Name: ['ModelledRailway', 'ModelledToRealRailwayConnector', 'ConnectionToMunicipalityNode', 'nodeconnector', 'RealRailway'];}
+		//unit<uint32> LinkTypes: NrOfRows = 5
+		//{attribute<string> Name: ['ModelledRailway', 'ModelledToRealRailwayConnector', 'ConnectionToMunicipalityNode', 'nodeconnector', 'RealRailway'];}
 		
 		unit<uint32> AngleSets: NrOfRows = 4
 		{
@@ -27,7 +27,7 @@ Container NetworksPreparation: Using = "Units;SourceData;PopulationModels;Source
 		{
 			attribute<point_rd> line (arc): expr = "StartNet/RailNetwork/line";
 			attribute<float32>  length:		expr = "StartNet/RailNetwork/length";
-			attribute<LinkTypes>LinkType:	expr = "bool(StartNet/RailNetwork/IsRail) ? 4[LinkTypes] : 2[LinkTypes]";
+			attribute<LinkTypes>LinkType:	expr = "StartNet/RailNetwork/LinkType";
 			attribute<float32> 	costs: expr = "bool(StartNet/RailNetwork/IsRail) ? StartNet/RailNetwork/Costs : const(params/municonnection_costs, ., float32)";
 			attribute<point_rd>	frompoint:	expr = "first_point(line)";
 			attribute<point_rd> topoint:	expr = "last_point(line)";
@@ -46,7 +46,7 @@ Container NetworksPreparation: Using = "Units;SourceData;PopulationModels;Source
 			attribute<float32>  	length: 		expr = "union_data(., baseNet/length,MuniConnections/length, yearlinks/length)";
 			attribute<Operators/Operators> op_id:	expr = "union_data(., const(0 / 0,baseNet,uint32), const(0 / 0,MuniConnections,uint32),yearlinks/op_id)[Operators/Operators]";
 			attribute<float32>  	costs:			expr = "MakeDefined(union_data(., baseNet/costs, MuniConnections/costs, yearlinks/costs), max(baseNet/costs))";
-			attribute<LinkTypes>  	LinkType:		expr = "union_data(., const(0, baseNet, LinkTypes), const(2, MuniConnections, LinkTypes), const(4, yearlinks, LinkTypes))";
+			attribute<LinkTypes>  	LinkType:		expr = "union_data(., const(Railroads/Railroads/Investments/LinkType[RunSettings/CurrentInvestment], baseNet, LinkTypes), const(LinkTypes/V/Walking, MuniConnections, LinkTypes), yearlinks/LinkType)";
 			attribute<point_rd>		frompoint: 		expr = "first_point(line)";	
 			attribute<point_rd>		topoint: 		expr = "last_point(line)";
 			attribute<float32>		p_angle:		expr = "MakeDefined((atan((pointRow(frompoint) - pointRow(topoint)) / (pointCol(frompoint) - pointCol(topoint))) * float32(180)) / float32(pi()), float32(0))";

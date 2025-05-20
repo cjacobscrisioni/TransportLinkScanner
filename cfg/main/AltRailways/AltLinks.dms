@@ -59,9 +59,9 @@ Container AltLinks: Using = "Units;PopulationModels;SourceData;"
 		unit<uint32> inNodeSet;
 		
 		attribute<float32> LinkBenefits (inBaseNetwork): expr = "ConstructionBenefits + float32(1)";
-		attribute<float32> LinkCosts	(inBaseNetwork): expr = "(IsDefined(op_id) && inBaseNetwork/op_id = op_id) || (IsNull(op_id) && !IsNull(inBaseNetwork/op_id)) ? float32(1) : ConstructionCosts";
+		attribute<float32> LinkCosts_local	(inBaseNetwork): expr = "(IsDefined(op_id) && inBaseNetwork/op_id = op_id) || (IsNull(op_id) && !IsNull(inBaseNetwork/op_id)) ? float32(1) : ConstructionCosts";
 		attribute<float32> LinkLength	(inBaseNetwork): expr = "inBaseNetwork/length / float32(1000)";
-		attribute<float32> LinkBCR		(inBaseNetwork): expr = "LinkBenefits / LinkCosts";
+		attribute<float32> LinkBCR		(inBaseNetwork): expr = "LinkBenefits / LinkCosts_local";
 		
 		
 		container getBestRoute
@@ -100,9 +100,9 @@ Container AltLinks: Using = "Units;PopulationModels;SourceData;"
 		unit<uint32> inNodeSet;
 		
 		attribute<float32> LinkBenefits (inBaseNetwork): expr = "ConstructionBenefits + float32(1)";
-		attribute<float32> LinkCosts	(inBaseNetwork): expr = "(IsDefined(op_id) && inBaseNetwork/op_id = op_id) || (IsNull(op_id) && !IsNull(inBaseNetwork/op_id)) ? float32(1) : ConstructionCosts";
+		attribute<float32> LinkCosts_local	(inBaseNetwork): expr = "(IsDefined(op_id) && inBaseNetwork/op_id = op_id) || (IsNull(op_id) && !IsNull(inBaseNetwork/op_id)) ? float32(1) : ConstructionCosts";
 		attribute<float32> LinkLength	(inBaseNetwork): expr = "inBaseNetwork/length / float32(1000)";
-		attribute<float32> LinkBCR		(inBaseNetwork): expr = "LinkBenefits / LinkCosts";
+		attribute<float32> LinkBCR		(inBaseNetwork): expr = "LinkBenefits / LinkCosts_local";
 		
 		container init 
 		{
@@ -222,11 +222,11 @@ Container AltLinks: Using = "Units;PopulationModels;SourceData;"
 			//attribute<float32>	benefits:	expr = "LinkBenefits[Nr_OrgEntity]";
 			attribute<point_rd> line (arc):	expr = "BaseNetwork/line[Nr_OrgEntity]";
 			attribute<float32>	length: 	expr = "BaseNetwork/length[Nr_OrgEntity]";
-			attribute<float32>	costs: 		expr = "LinkCosts[Nr_OrgEntity]";
+			attribute<float32>	costs: 		expr = "LinkCosts_local[Nr_OrgEntity]";
 			attribute<uint32>	LinkType:	expr = "BaseNetwork/LinkType[Nr_OrgEntity]";
 			attribute<point_rd>	frompoint:	expr = "first_point(line)";
 			attribute<point_rd> topoint:	expr = "last_point(line)";
-			attribute<float32>  realcosts:	expr = "LinkCosts[Nr_OrgEntity]";
+			attribute<float32>  realcosts:	expr = "LinkCosts_local[Nr_OrgEntity]";
 			attribute<float32>  imp:		expr = "impedance[Nr_OrgEntity]";
 			
 			unit<uint32>	PointSet: 	expr = "union_unit(DefLinks, DefLinks)" { attribute<point_rd>	Points: expr = "union_data(PointSet, frompoint, topoint)"; } 
