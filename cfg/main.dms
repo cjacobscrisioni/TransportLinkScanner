@@ -33,13 +33,15 @@ Container TransportLinkScanner
 			attribute<uint32> InvestId;
 			attribute<uint32> Year;
 		}
-		unit<uint32> Scenarios: NrOfRows = 109{
+		unit<uint32> Scenarios: NrOfRows = 111{
 			parameter<uint32> NrAttributes: [10];
 			
 			unit<uint32> Table: expr = "range(uint32, 0, #Scenarios * NrAttributes)" {
 				attribute<string> data: [
 				//Name									Randombase	costfield_eval				MatrixSelection			InvestmentSelection			popfield, 				maxLengthFromWindow rankselection 	high_prob_alter		investment_pause
 				'elastic_no_state',							'0',	'curr_costs',				'logit_w_elasticity',		'elastic_r1',			'ObservedDynamic',		'true',				'0',			'9',				'1',
+				'calib_elastic_speed_inc_local_speed_min15',		'0',	'curr_costs',				'logit_w_elasticity',		'calib',				'ObservedDynamic',		'true',				'0',			'9',				'1',
+				'calib_elastic_speed_inc_local_speed_plus15',		'0',	'curr_costs',				'logit_w_elasticity',		'calib',				'ObservedDynamic',		'true',				'0',			'9',				'1',
 				'calib_elastic_speed_inc_local_speed',		'0',	'curr_costs',				'logit_w_elasticity',		'calib',				'ObservedDynamic',		'true',				'0',			'9',				'1',
 			//	'calib_elastic_speed_inc',		'0',	'curr_costs',				'logit_w_elasticity',		'calib',				'ObservedDynamic',		'true',				'0',			'9',				'1',
 				'calib_elastic_local_speed',	'0',	'curr_costs',				'logit_w_elasticity',		'calib',				'ObservedDynamic',		'true',				'0',			'9',				'1',
@@ -172,7 +174,11 @@ Container TransportLinkScanner
 			attribute<string> 	Label:							expr = "Name";
 			
 			attribute<float32> 	WalkKmh:						expr = "const(4,.,float32)";
-			attribute<float32> 	TrainKmh: 						expr = "strcount(Name, 'speed_inc') = 0 ? 32f : 0.0000115f * exp(0.0079f * RunSettings/inYear[float32])";
+			attribute<float32> 	TrainKmh: 						expr = "switch(
+					case(strcount(Name, 'speed_inc_local_speed_min15') > 0, 0.0000115f * exp(0.0079f * (RunSettings/inYear[float32] - 15f))), 
+					case(strcount(Name, 'speed_inc_local_speed_plus15') > 0, 0.0000115f * exp(0.0079f * (RunSettings/inYear[float32] + 15f))),
+					case(strcount(Name, 'speed_inc') > 0, 0.0000115f * exp(0.0079f * RunSettings/inYear[float32])), 					
+					32f)";
 			attribute<float32>  LocalKmh:						expr = "strcount(Name, 'local_speed') = 0 ? TrainKmh : 16f";
 			attribute<bool>		Alonso_model:					expr = "strcount(Name, 'notelastic') = 0";
 			attribute<float32> 	scenario_b1:					expr = "strcount(Name, 'RietveldBruinsma') = 0 ? -1.8f : -2.0f";

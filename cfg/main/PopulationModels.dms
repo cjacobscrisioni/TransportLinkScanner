@@ -115,7 +115,7 @@ Container PopulationModels: Using = "Units;" {
 		
 		// below necessary for realistic modelled network timing
 		unit<uint32> ObsNetworkDevelopment: expr = "PopulationModelYears" {
-			attribute<float32> netlength_byyear: expr = "max_elem(max(SourceData/Railroads/Railroads/Railroad_data/Investments/CumuLength, SourceData/Railroads/Railroads/Railroad_data/Investments/PopulationModelYear), 0f)";
+			attribute<float32> netlength_byyear: expr = "max_elem(max(SourceData/Railroads/Railroads/Investments/CumuLength, SourceData/Railroads/Railroads/Investments/PopulationModelYear), 0f)";
 		}
 		unit<uint32> AllocatedNetwork: expr = "Network" {
 			attribute<AllocatedInvestments> invRef: expr = "rlookup(Network/Investid, AllocatedInvestments/Values)";

@@ -31,4 +31,7 @@ Container SimpleDecisionEvaluator: Using = "RunSettings;"
 		attribute<LinkTypes>linktype:= 	switch(case(!bool(IsRail), 0[LinkTypes]), case(bool(Operators/Operators/State)[OpNum], 2[LinkTypes]), case(bool(Operators/Operators/Local)[OpNum], 3[LinkTypes]), 1[LinkTypes]);
 		attribute<s>		Seconds:=	length / LinkTypes/speeds[linktype];
 	}
+	
+	
+	
 }

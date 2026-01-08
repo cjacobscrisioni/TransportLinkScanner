@@ -43,6 +43,8 @@ container ResultsComparison_general: using = "Units;SourceData;"
 			|| lowercase(RunSettings/Scenarios/Name) = 'calib_elastic_ms0_speed_inc_local_speed'
 			|| lowercase(RunSettings/Scenarios/Name) = 'calib_elastic_ms1_speed_inc_local_speed'
 			|| lowercase(RunSettings/Scenarios/Name) = 'calib_elastic_ms2_speed_inc_local_speed'
+			|| lowercase(RunSettings/Scenarios/Name) = 'calib_elastic_speed_inc_local_speed_min15'
+			|| lowercase(RunSettings/Scenarios/Name) = 'calib_elastic_speed_inc_local_speed_plus15'
 			) {
 		attribute<string> Name:= RunSettings/Scenarios/Name[Nr_OrgEntity];
 		attribute<string> LabelText:= Name;
@@ -63,10 +65,10 @@ container ResultsComparison_general: using = "Units;SourceData;"
 		attribute<float32> walkspeed_def:= =comparison_params/WalkKmh;
 		attribute<float32> WaitingSeconds_def:= =comparison_params/WaitingSeconds;
 		
-		container walkspeeds:= for_each_nedv(eval_years/sYear, 'walkspeed_def', AllEvaluatedScenarios, float32);
-		container trainspeeds:= for_each_nedv(eval_years/sYear, eval_years/trainspeed_eval, AllEvaluatedScenarios, float32) {attribute<string> Name (AllEvaluatedScenarios):= id(AllEvaluatedScenarios)=0 ? ScenariosRan/Name[HistoricNet_ResultsCumulation/s_id] : AllEvaluatedScenarios/Name;}
-		container localspeeds:= for_each_nedv(eval_years/sYear, eval_years/localspeed_eval, AllEvaluatedScenarios, float32) {attribute<string> Name (AllEvaluatedScenarios):= id(AllEvaluatedScenarios)=0 ? ScenariosRan/Name[HistoricNet_ResultsCumulation/s_id] : AllEvaluatedScenarios/Name;}
-		container waitingtimes:= for_each_nedv(eval_years/sYear, 'WaitingSeconds_def', AllEvaluatedScenarios, float32);
+		container walkspeeds:= for_each_nedv(eval_years/sYear, 'walkspeed_def', AllEvaluatedScenarios, float32), descr = "Evaluates year and scenario-specific walking speeds";
+		container trainspeeds:= for_each_nedv(eval_years/sYear, eval_years/trainspeed_eval, AllEvaluatedScenarios, float32), descr = "Evaluates year and scenario-specific train speeds" {attribute<string> Name (AllEvaluatedScenarios):= id(AllEvaluatedScenarios)=0 ? ScenariosRan/Name[HistoricNet_ResultsCumulation/s_id] : AllEvaluatedScenarios/Name;}
+		container localspeeds:= for_each_nedv(eval_years/sYear, eval_years/localspeed_eval, AllEvaluatedScenarios, float32), descr = "Evaluates year and scenario-specific local train speeds" {attribute<string> Name (AllEvaluatedScenarios):= id(AllEvaluatedScenarios)=0 ? ScenariosRan/Name[HistoricNet_ResultsCumulation/s_id] : AllEvaluatedScenarios/Name;}
+		container waitingtimes:= for_each_nedv(eval_years/sYear, 'WaitingSeconds_def', AllEvaluatedScenarios, float32), descr = "Evaluates year and scenario-specific waiting times";
 	}
 	unit<uint32> Investments: expr = "range(uint32, 0, max(AllEvaluatedScenarios/LastInvestment))"
 	{
@@ -159,7 +161,7 @@ container ResultsComparison_general: using = "Units;SourceData;"
 				attribute<m>  		Length:		expr = "arc_length(line, m)";
 				//attribute<s>		Seconds: 	expr = "!bool(IsRail) ? (length / comparison_params/WalkSpeed) + comparison_params/WaitingSeconds : length / (OpType = 1 ? comparison_params/LocalSpeed : comparison_params/TrainSpeed)";
 				attribute<uint32>	OpType:		expr = "union_data(., Railroads/Railroads/Railroad_data/OpType, const(0 / 0,Railroads/Stations/StationConnectLinks,uint32))";
-				attribute<uint32>	Year:		expr = "uint32(Railroads/Railroads/Railroad_data/Investments/OpenYear[InvestId])";
+				attribute<uint32>	Year:		expr = "uint32(Railroads/Railroads/Investments/OpenYear[InvestId])";
 				
 			}
 		}
@@ -233,9 +235,6 @@ container ResultsComparison_general: using = "Units;SourceData;"
 			attribute<uint32> Border:			expr = "= 'union_data(.,'+ AsItemList('(retrieve_characteristics/'+ Tobeloaded/Uni_name +'/InvestmentCharacteristics/Border)') +')'";
 			attribute<uint32> Watercross:		expr = "= 'union_data(.,'+ AsItemList('(retrieve_characteristics/'+ Tobeloaded/Uni_name +'/InvestmentCharacteristics/Watercross)') +')'";
 			
-			//attribute<float32> d_OthFlw:		expr = "= 'union_data(.,'+ AsItemList('float32(retrieve_characteristics/'+ Tobeloaded/Uni_name +'/InvestmentCharacteristics/d_OthFlw)') +')'";
-			//attribute<float32> own_net:			expr = "= 'union_data(.,'+ AsItemList('float32(retrieve_characteristics/'+ Tobeloaded/Uni_name +'/InvestmentCharacteristics/own_net)') +')'";
-			//attribute<float32> any_net:			expr = "= 'union_data(.,'+ AsItemList('float32(retrieve_characteristics/'+ Tobeloaded/Uni_name +'/InvestmentCharacteristics/any_net)') +')'";
 		}
 		Container Cumulate_ConsumerSurplus:= for_each_ne(ScenariosRan/Name, 'do_Cumulate_ConsumerSurplus('+string(id(ScenariosRan))+')');
 		Template do_Cumulate_ConsumerSurplus {
@@ -258,50 +257,12 @@ container ResultsComparison_general: using = "Units;SourceData;"
 				attribute<float32>	Dist_Adam:= dist(centroid_or_mid(Geometry), const(Amsterdam_centroid, ., point_rd)) / 1000f;
 			}
 		}
-		
-		/*unit<uint32> compile_od_matrices: expr = "= 'union_unit('+ AsItemList('retrieve_characteristics/'+ Tobeloaded/Uni_name + '/ODMatrix') +')'"//, StorageName = "%projDir%/results/odset.dbf"
-		{
-			attribute<string>  Scenario: 	expr = "= 'union_data(.,'+ AsItemList('const('+quote(Tobeloaded/ScenarioName)+', retrieve_characteristics/'+ Tobeloaded/Uni_name +'/ODMatrix, string)')+')'";
-			attribute<uint32>  InvId: 		expr = "= 'union_data(.,'+ AsItemList('const('+string(Tobeloaded/InvestId)+', retrieve_characteristics/'+ Tobeloaded/Uni_name +'/ODMatrix, uint32)')+')'";
-			attribute<uint32>  fromZone: 	expr = "= 'uint32(union_data(.,'+ AsItemList('retrieve_characteristics/'+ Tobeloaded/Uni_name +'/ODMatrix/fromZone') +'))'";
-			attribute<uint32>  toZone: 		expr = "= 'uint32(union_data(.,'+ AsItemList('retrieve_characteristics/'+ Tobeloaded/Uni_name +'/ODMatrix/toZone') +'))'";
-			attribute<string>  from: 		expr = "= '(union_data(.,'+ AsItemList('retrieve_characteristics/'+ Tobeloaded/Uni_name +'/ODMatrix/from') +'))'";
-			attribute<string>  to:	 		expr = "= '(union_data(.,'+ AsItemList('retrieve_characteristics/'+ Tobeloaded/Uni_name +'/ODMatrix/to') +'))'";
-			attribute<float32> BCi:	expr = "float32(PopulationModels/Population/isBorderZone[fromZone] > uint16(0))";
-			attribute<float32> BCj:	expr = "float32(PopulationModels/Population/isBorderZone[toZone] > uint16(0))";
-			attribute<float32> ProvCapi:	expr = "float32(PopulationModels/Population/isProvHoofd[fromZone] > uint16(0))";
-			attribute<float32> ProvCapj:	expr = "float32(PopulationModels/Population/isProvHoofd[toZone] > uint16(0))";
-			attribute<float32> Miningi:		expr = "float32(PopulationModels/Population/isMine[fromZone] > uint16(0))";
-			attribute<float32> Miningj:		expr = "float32(PopulationModels/Population/isMine[toZone] > uint16(0))";
-			attribute<float32> Harbouri:	expr = "float32(PopulationModels/Population/isHaven[fromZone] > uint16(0))";
-			attribute<float32> Harbourj:	expr = "float32(PopulationModels/Population/isHaven[toZone] > uint16(0))";
-			attribute<float32> FromPop:		expr = "= 'float32(union_data(.,'+ AsItemList('retrieve_characteristics/'+ Tobeloaded/Uni_name +'/ODMatrix/FromPop') +'))'";
-			attribute<float32> ToPop:		expr = "= 'float32(union_data(.,'+ AsItemList('retrieve_characteristics/'+ Tobeloaded/Uni_name +'/ODMatrix/ToPop') +'))'";
-			attribute<float32> Conni:		expr = "= 'float32(union_data(.,'+ AsItemList('retrieve_characteristics/'+ Tobeloaded/Uni_name +'/ODMatrix/Conni') +'))'";
-			attribute<float32> Connj:		expr = "= 'float32(union_data(.,'+ AsItemList('retrieve_characteristics/'+ Tobeloaded/Uni_name +'/ODMatrix/Connj') +'))'";
-			attribute<float32> C0ij:		expr = "= 'float32(union_data(.,'+ AsItemList('retrieve_characteristics/'+ Tobeloaded/Uni_name +'/ODMatrix/C0ij') +'))'";
-			attribute<float32> C1ij:		expr = "= 'float32(union_data(.,'+ AsItemList('retrieve_characteristics/'+ Tobeloaded/Uni_name +'/ODMatrix/C1ij') +'))'";
-			attribute<float32> Bij:			expr = "= 'float32(union_data(.,'+ AsItemList('retrieve_characteristics/'+ Tobeloaded/Uni_name +'/ODMatrix/Bij') +'))'";
-			attribute<float32> PKBij:		expr = "= 'float32(union_data(.,'+ AsItemList('retrieve_characteristics/'+ Tobeloaded/Uni_name +'/ODMatrix/PKBij') +'))'";
-			attribute<float32> PK0ij:		expr = "= 'float32(union_data(.,'+ AsItemList('retrieve_characteristics/'+ Tobeloaded/Uni_name +'/ODMatrix/PK0ij') +'))'";
-			attribute<float32> PK1ij:		expr = "= 'float32(union_data(.,'+ AsItemList('retrieve_characteristics/'+ Tobeloaded/Uni_name +'/ODMatrix/PK1ij') +'))'";
-			attribute<float32> Costs:		expr = "= 'float32(union_data(.,'+ AsItemList('retrieve_characteristics/'+ Tobeloaded/Uni_name +'/ODMatrix/Costs') +'))'";
-			//attribute<float32> A0i:			expr = "= 'float32(union_data(.,'+ AsItemList('retrieve_characteristics/'+ Tobeloaded/Uni_name +'/ODMatrix/A0i') +'))'";
-			//attribute<float32> A1i:			expr = "= 'float32(union_data(.,'+ AsItemList('retrieve_characteristics/'+ Tobeloaded/Uni_name +'/ODMatrix/A1i') +'))'";
-			//attribute<float32> A0j:			expr = "= 'float32(union_data(.,'+ AsItemList('retrieve_characteristics/'+ Tobeloaded/Uni_name +'/ODMatrix/A0j') +'))'";
-			//attribute<float32> A1j:			expr = "= 'float32(union_data(.,'+ AsItemList('retrieve_characteristics/'+ Tobeloaded/Uni_name +'/ODMatrix/A1j') +'))'";
-			attribute<float32> BCR:			expr = "= 'float32(union_data(.,'+ AsItemList('retrieve_characteristics/'+ Tobeloaded/Uni_name +'/ODMatrix/BCR') +'))'";
-			attribute<float32> soc_ben:		expr = "= 'float32(union_data(.,'+ AsItemList('retrieve_characteristics/'+ Tobeloaded/Uni_name +'/ODMatrix/SOC_BEN') +'))'";
-			attribute<float32> realInvest:	expr = "= 'float32(union_data(.,'+ AsItemList('retrieve_characteristics/'+ Tobeloaded/Uni_name +'/ODMatrix/realInvest') +'))'";
-			
-			parameter<string> fieldList: expr = "'Scenario; InvId; fromZone; toZone; from; to; BCi; BCj; ProvCapi; ProvCapj; Miningi; Miningj; Harbouri; Harbourj; FromPop; ToPop; Conni; Connj; C0ij; C1ij; Bij; PKBij; PK0ij; PK1ij; BCR; Costs; soc_ben; realInvest'";
-			container storeCsvMatrix: expr = "TableComposer(compile_od_matrices, fieldList, '%projDir%/runs/.csv')";
-		}*/
 	}
-	container getAnalysisPerInvestment: IsTemplate = "True"
+	container getAnalysisPerInvestment: IsTemplate = "True", descr = "Calculate accessibility and accuracy measures per individual investment over a range of scenarios that are evaluated"
 	{
 		parameter<uint32> inInvestId;
 		parameter<uint32> inOt_id: expr = "0 / 0";
+		parameter<bool> dynamic_pop:= True;
 		
 		container prior_investment:= =inInvestId > 0 ? 'AnalysisPerInvestment/inv_'+string(sub_or_null(inInvestId, 1)) : 'startingstate';
 		
@@ -316,12 +277,16 @@ container ResultsComparison_general: using = "Units;SourceData;"
 
 		container zone_evaluation
 		{
-			parameter<string> comp_pop_ref: expr = "'PopulationModels/Population/Pop' + string(comp_year)+'[float32]'";
-			parameter<uint16>  comp_year:= makedefined(inInvestId, 0) < max(Railroads/Railroads/Railroad_data/Investments/id[uint32]) ? Railroads/Railroads/Railroad_data/Investments/InYear[max(Railroads/Railroads/Railroad_data/Investments/id)] : Railroads/Railroads/Railroad_data/Investments/InYear[makeDefined(inInvestId, 0)];
+			parameter<string> comp_pop_ref: expr = "'PopulationModels/Population/Pop' + string(comp_year)+'[float32]'", descr = "Reference to population used in the accessibility calculations";
+			parameter<uint16>  comp_year:= switch(
+				case(dynamic_pop && makedefined(inInvestId, 0) < max(Railroads/Railroads/Investments/id[uint32]), Railroads/Railroads/Investments/InYear[makeDefined(inInvestId, 0)]),
+				case(!dynamic_pop && makedefined(inInvestId, 0) < max(Railroads/Railroads/Investments/id[uint32]), Railroads/Railroads/Investments/InYear[max(Railroads/Railroads/Investments/id)]),
+				Railroads/Railroads/Investments/InYear[max(Railroads/Railroads/Investments/id)]),
+				descr = "Identify year used as source for population. In case of dynamic_pop, take concurrent observed population. In case of non-dynamic, take final population year.";
 			
 			
+			attribute<float32> pop (PopulationModels/Population): expr = "= strlen(popref) > 0 ? popref : comp_pop_ref", Descr = "";
 			
-			attribute<float32> pop (PopulationModels/Population): expr = "= strlen(popref) > 0 ? popref : comp_pop_ref";
 			container connected:		expr = "for_each_nedv(AllEvaluatedScenarios/Name, 'sum(uint32(ScenarioEval/'+ AllEvaluatedScenarios/Name +'/zone_evaluation/centroid_conn))', void, uint32)";
 			container comp_pop:			expr = "for_each_nedv(AllEvaluatedScenarios/Name, 'ScenarioEval/'+ AllEvaluatedScenarios/Name +'/Comparable_Built_ref/zone_evaluation/pop', PopulationModels/Population, float32)";
 			container connected_eval: 	expr = "for_each_nedv(AllEvaluatedScenarios/Name, 'ScenarioEval/'+ AllEvaluatedScenarios/Name +'/Comparable_Built_ref/ScenarioEval/'+ BaseScenario/Name[0] +'/zone_evaluation/centroid_conn && ScenarioEval/'+ AllEvaluatedScenarios/Name +'/zone_evaluation/centroid_conn', PopulationModels/Population, bool)";
@@ -329,8 +294,8 @@ container ResultsComparison_general: using = "Units;SourceData;"
 			container connected_pop_pct:expr = "for_each_nedv(AllEvaluatedScenarios/Name, 'sum(float32(connected_eval/'+ AllEvaluatedScenarios/Name +') * comp_pop/'+ AllEvaluatedScenarios/Name +') / "
 				"sum(float32(ScenarioEval/'+ AllEvaluatedScenarios/Name +'/Comparable_Built_ref/ScenarioEval/'+ BaseScenario/Name[0] +'/zone_evaluation/centroid_conn) * comp_pop/'+ AllEvaluatedScenarios/Name +')', void, float32)";
 			
-			container A1i:				expr = "for_each_nedv(AllEvaluatedScenarios/Name, 'sum(pop[ScenarioEval/'+ AllEvaluatedScenarios/Name +'/od_eval/j] * (ScenarioEval/'+ AllEvaluatedScenarios/Name +'/od_eval/traveltime ^ AllEvaluatedScenarios/Distdecay['+ string(id(AllEvaluatedScenarios)) +']), ScenarioEval/'+ AllEvaluatedScenarios/Name +'/od_eval/i)', PopulationModels/Population, float32)";
-			container A0i:				expr = "for_each_nedv(AllEvaluatedScenarios/Name, 'sum(pop[prior_investment/ScenarioEval/'+ AllEvaluatedScenarios/Name +'/od_eval/j] * (prior_investment/ScenarioEval/'+ AllEvaluatedScenarios/Name +'/od_eval/traveltime ^ AllEvaluatedScenarios/Distdecay['+ string(id(AllEvaluatedScenarios)) +']), prior_investment/ScenarioEval/'+ AllEvaluatedScenarios/Name +'/od_eval/i)', PopulationModels/Population, float32)";
+			container A1i:				expr = "for_each_nedv(AllEvaluatedScenarios/Name, 'sum(pop[ScenarioEval/'+ AllEvaluatedScenarios/Name +'/od_eval/j] * (ScenarioEval/'+ AllEvaluatedScenarios/Name +'/od_eval/traveltime[float32] ^ AllEvaluatedScenarios/Distdecay['+ string(id(AllEvaluatedScenarios)) +']), ScenarioEval/'+ AllEvaluatedScenarios/Name +'/od_eval/i)', PopulationModels/Population, float32)";
+			container A0i:				expr = "for_each_nedv(AllEvaluatedScenarios/Name, 'sum(pop[prior_investment/ScenarioEval/'+ AllEvaluatedScenarios/Name +'/od_eval/j] * (prior_investment/ScenarioEval/'+ AllEvaluatedScenarios/Name +'/od_eval/traveltime[float32] ^ AllEvaluatedScenarios/Distdecay['+ string(id(AllEvaluatedScenarios)) +']), prior_investment/ScenarioEval/'+ AllEvaluatedScenarios/Name +'/od_eval/i)', PopulationModels/Population, float32)";
 			container DAi:				expr = "for_each_nedv(AllEvaluatedScenarios/Name, 'A1i/'+AllEvaluatedScenarios/Name+' - A0i/'+AllEvaluatedScenarios/Name, PopulationModels/Population, float32)";
 			// compute accuracy, weighted by population
 			
@@ -358,7 +323,7 @@ container ResultsComparison_general: using = "Units;SourceData;"
 			container maxAi: 	expr = "for_each_nedv(AllEvaluatedScenarios/Name, 'max(zone_evaluation/Ai/'+ AllEvaluatedScenarios/Name +')', void, float32)";
 			container meanAi: 	expr = "for_each_nedv(AllEvaluatedScenarios/Name, 'mean(zone_evaluation/Ai/'+ AllEvaluatedScenarios/Name +')', void, float32)";
 			container theilAi: 	expr = "for_each_nedv(AllEvaluatedScenarios/Name, 'mean((zone_evaluation/Ai/'+ AllEvaluatedScenarios/Name +' / meanAi/'+ AllEvaluatedScenarios/Name +') * log(zone_evaluation/Ai/'+ AllEvaluatedScenarios/Name +' / meanAi/'+ AllEvaluatedScenarios/Name +'))', void, float32)";
-//			container 
+
 		}
 		
 		

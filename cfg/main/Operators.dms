@@ -42,14 +42,6 @@ Container Operators: Using = "SourceData;SourceData/Railroads/Railroads/Railroad
 	unit<uint32> Real_Operators:= = RunSettings/Scenarios/modelRealInvestments[RunSettings/ScenarioId] ? 'Historical_Operators' : 'Model_Operators' {
 		attribute<bool>	  Exclusive_activation:= id(.) = SourceData/Railroads/RealInvestmentConstructor/OpId || !RunSettings/Scenarios/modelRealInvestments[RunSettings/ScenarioId];
 	}
-	unit<uint32> Historical_Operators: expr = "unique(Expl)"
-	{
-		attribute<string> Name: 		expr = "Values";
-		attribute<uint16> Local: 		expr = "max(LocalTrck, OperatorId)";
-		attribute<uint16> State:		expr = "uint16(Values = 'NS' || Values = 'SS')";
-		attribute<uint16> Activation:	expr = "min(Open1, OperatorId)";
-		attribute<string>   Label:		expr = "Name", DialogType = "LabelText";
-	}
 	unit<uint32> Model_Operators: NrOfRows = 5
 	{ 
 		attribute<string>	Name: 		['Private_A', 'Private_B', 'Private_Local_A', 'Private_Local_B', 'State']; 
@@ -67,5 +59,46 @@ Container Operators: Using = "SourceData;SourceData/Railroads/Railroads/Railroad
 		attribute<string>   Label:		expr = "Name", DialogType = "LabelText";
 	}	
 	
+	
+	unit<uint32> Historical_Operators:= range(uint32, 0, 23) {
+		parameter<uint32> nr_attributes:= 5;
+		
+		attribute<string> Name:= intable/values[((id(.)*nr_attributes)+0)[intable]];
+		attribute<uint16> Local:= 		uint16(intable/values[((id(.)*nr_attributes)+1)[intable]]);
+		attribute<uint16> State:= 		uint16(intable/values[((id(.)*nr_attributes)+2)[intable]]);
+		attribute<uint16> Foreign:= 	uint16(intable/values[((id(.)*nr_attributes)+3)[intable]]);
+		attribute<uint16> Activation:= 	uint16(intable/values[((id(.)*nr_attributes)+4)[intable]]);
+		attribute<string>   Label:		expr = "Name", DialogType = "LabelText";
+		
+		unit<uint32> intable:= range(uint32, 0, #Historical_Operators * nr_attributes) {
+			attribute<string> values: [
+			//'Label',	'Local',	'State',	'Foreign',	'Activation',
+			'AEE',	'0',	'0',	'1',	'1903',
+			'DV',	'1',	'0',	'0',	'1904',
+			'EO',	'1',	'0',	'0',	'1890',
+			'GCB',	'0',	'0',	'1',	'1853',
+			'GLS',	'1',	'0',	'0',	'1893',
+			'HESM',	'1',	'0',	'0',	'1912',
+			'HSM',	'0',	'0',	'0',	'1839',
+			'HZSM',	'1',	'0',	'0',	'1881',
+			'KNLS',	'1',	'0',	'0',	'1881',
+			'LM',	'0',	'0',	'1',	'1853',
+			'NBDS',	'0',	'0',	'0',	'1873',
+			'NCS',	'0',	'0',	'0',	'1863',
+			'NFLS',	'1',	'0',	'0',	'1901',
+			'NOLS',	'1',	'0',	'0',	'1903',
+			'NRS',	'0',	'0',	'0',	'1843',
+			'NS',	'0',	'1',	'0',	'1929',
+			'NSM',	'0',	'0',	'0',	'1865',
+			'NZOS',	'0',	'0',	'0',	'1881',
+			'NZSM',	'1',	'0',	'0',	'1896',
+			'OLDO',	'1',	'0',	'0',	'1910',
+			'SS',	'0',	'1',	'0',	'1863',
+			'STAR',	'1',	'0',	'0',	'1924',
+			'ZHESM','1',	'0',	'0',	'1907'
+			];
+			
+		}
+	}
 	
 }

@@ -16,11 +16,11 @@ container getInbetweens: Using = "Units;PopulationModels;params;"
 		attribute<float32>  Length;
 		attribute<uint32> 	Altid;
 		attribute<string> 	Label;
-		attribute<uint32> 	LinkType;
+		attribute<LinkTypes> 	LinkType;
 		attribute<uint32> 	sel_link;
 		attribute<PeriodAltSets> PeriodAltSet_id: expr = "rlookup(Altid, PeriodAltSets/Values)";
-		attribute<float32>  AccountedCosts: expr = "LinkType < 2 ? Costs: float32(0)";
-		attribute<float32>  CostsPmt:= Costs / Length;
+		attribute<float32>  AccountedCosts: expr = "LinkType <> LinkTypes/V/Walking ? Costs: float32(0)";
+		attribute<float32>  CostsPmt:= AccountedCosts / Length;
 	}
 	
 	unit<uint32> PeriodAltSets: expr = "unique(periodAltlines/Altid)"
@@ -29,8 +29,8 @@ container getInbetweens: Using = "Units;PopulationModels;params;"
 		attribute<uint32> 	maxLinkType: 		expr = "max(periodAltlines/LinkType, periodAltlines/PeriodAltSet_id)";
 		attribute<float32> 	Costs: 				expr = "sum(periodAltlines/AccountedCosts, periodAltlines/PeriodAltSet_id)";
 		attribute<float32> 	Length: 			expr = "sum(periodAltlines/Length, periodAltlines/PeriodAltSet_id)";
-		attribute<float32>  RailLength:			expr = "sum(float32(periodAltlines/LinkType = 0) * periodAltlines/Length, periodAltlines/PeriodAltSet_id)";
-		attribute<bool>	  	UsesExistingTrack: 	expr = "maxLinkType = 4";
+		attribute<float32>  RailLength:			expr = "sum(float32(periodAltlines/LinkType <> LinkTypes/V/Walking) * periodAltlines/Length, periodAltlines/PeriodAltSet_id)";
+		//attribute<bool>	  	UsesExistingTrack: 	expr = "maxLinkType = 4";
 		attribute<bool>		NextPeriodProject:	expr = "!IsNull(strpos(string(Values), 'Concessie'))";
 		attribute<uint32>	sel_link:			expr = "max(periodAltlines/sel_link, periodAltLines/PeriodAltSet_id)";
 		
@@ -95,8 +95,9 @@ container getInbetweens: Using = "Units;PopulationModels;params;"
 			attribute<bool> 	isBridge:	expr = "const(false, ., bool)";
 			attribute<bool>		isAddition: expr = "const(True, ., bool)";
 			attribute<Operators/Operators>	OperatorId:	expr = "const(OpNum,.,Operators/Operators)";
-			attribute<LinkTypes>inv_type:= 	switch(case(!bool(IsRail), 0[LinkTypes]), case(bool(Operators/Operators/State)[OperatorId], 2[LinkTypes]), case(bool(Operators/Operators/Local)[OperatorId], 3[LinkTypes]), 1[LinkTypes]);
-			attribute<s>		Seconds:=	length / LinkTypes/speeds[inv_type] + float32(isnull(nr_OrgEntity)) * (Params/WaitingSeconds / 2f), descr = "added penalty for waiting on connectors";
+			attribute<InvestorTypes>inv_type:= 	const(SourceData/Railroads/Railroads/Investments/InvType[RunSettings/CurrentInvestment],.,InvestorTypes); // replace with generic investment reference
+			attribute<LinkTypes> InvLinkType:= IsRail ? InvestorTypes/LinkType[inv_type] : LinkTypes/V/Walking;
+			attribute<s>		Seconds:=	length / LinkTypes/speeds[InvLinkType] + float32(isnull(nr_OrgEntity)) * (Params/WaitingSeconds / 2f), descr = "added penalty for waiting on connectors";
 			attribute<m>		length: 	expr = "arc_length(line, m)";
 			//attribute<s>		Seconds:	expr = "isRail ? length / TrainSpeed: (length / WalkSpeed) + WaitingSeconds";  
 			
